@@ -66,7 +66,7 @@ Migrations are in `supabase/migrations`, dummy investors in `supabase/seed.sql`.
 ## Known limits
 
 - **OpenMail free plan: 3 inboxes per account.** The fourth signup gets a clear "inbox limit" message and a *Set up inbox* button in the top bar and Settings once the limit is raised. Cold sends are capped at 20 a day per new inbox and 30 a day per account.
-- Reply notification links use `APP_URL` (set it as a function env var or it falls back to `http://localhost:3000`).
+- Reply notification links use `APP_URL` from Vault (currently https://achraf-centrale.vercel.app).
 - PPTX, KEY and DOCX decks are stored but not read yet; PDFs are read by Claude.
 - "Make one for me" records the request; deck generation, follow-ups and Stripe checkout are next.
 - Matching is the weighted SQL score; thesis embeddings and the Claude conflict review from the brief are the next pass.

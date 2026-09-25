@@ -84,7 +84,7 @@ serve(async (req) => {
         admin.from("investors").select("full_name,firm").eq("id", investorId).single(),
         admin.from("profiles").select("email,first_name").eq("id", inbox.owner_id).single(),
       ]);
-      const appUrl = Deno.env.get("APP_URL") ?? "http://localhost:3000";
+      const appUrl = await secret("APP_URL").catch(() => "http://localhost:3000");
       if (investor && profile?.email) {
         const preview = escapeHtml(msg.body_text.split(/\n\s*\n/)[0].slice(0, 280));
         await openmail(`/v1/inboxes/${await secret("OPENMAIL_SYSTEM_INBOX_ID")}/send`, {

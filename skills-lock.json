@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "openmail": {
+      "source": "openmailsh/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openmail/SKILL.md",
+      "computedHash": "c8b3366e5cb077c2e847f31d0eafdbb597a17b3e679ce0d1df2b8eaa7c255f59"
+    }
+  }
+}

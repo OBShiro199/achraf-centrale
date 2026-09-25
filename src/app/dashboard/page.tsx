@@ -118,13 +118,14 @@ export default function HomePage() {
   const saved = stats?.investors_saved ?? 0;
 
   const steps = [
-    { done: startup.analysis_status === "done", label: "Startup profile written", href: "/dashboard/profile" },
-    { done: Boolean(inbox), label: "Sending inbox ready", href: "/dashboard/settings" },
-    { done: saved >= 3, label: `Save three investors (${Math.min(saved, 3)} of 3)`, href: "/dashboard/investors" },
-    { done: (stats?.emails_sent ?? 0) > 0, label: "Send your first investor email", href: "/dashboard/investors" },
-    { done: (stats?.investors_replied ?? 0) > 0, label: "Get your first reply", href: "/dashboard/inbox" },
+    { done: startup.analysis_status === "done", label: "Profile written", note: "From your website", href: "/dashboard/profile" },
+    { done: Boolean(inbox), label: "Inbox ready", note: inbox ? "Sending live" : "Needs setting up", href: "/dashboard/settings" },
+    { done: saved >= 3, label: "Save 3 investors", note: `${Math.min(saved, 3)} of 3 saved`, href: "/dashboard/investors" },
+    { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors" },
+    { done: (stats?.investors_replied ?? 0) > 0, label: "Get first reply", note: "We email you", href: "/dashboard/inbox" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
+  const nextStep = steps.findIndex((s) => !s.done);
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
@@ -153,32 +154,48 @@ export default function HomePage() {
 
       {doneCount < steps.length && (
         <Settle delay={60}>
-          <Card className="graph-paper-faint mt-6 overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-2 px-5 py-3.5">
+          <Card className="mt-6">
+            <div className="flex items-center justify-between gap-3 border-b border-line-2 px-5 py-3.5">
               <div className="flex items-center gap-2.5">
                 <BrandMark className="h-4 w-4" />
                 <p className="text-[14px] font-semibold text-ink">Getting to your first reply</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="h-1.5 w-32 overflow-hidden rounded-full bg-line-2">
-                  <div className="h-full rounded-full bg-vermilion transition-[width] duration-700" style={{ width: `${(doneCount / steps.length) * 100}%` }} />
-                </div>
-                <span className="tabular text-[12.5px] text-label">
-                  {doneCount} of {steps.length}
-                </span>
-              </div>
+              <span className="tabular text-[12.5px] text-label">
+                {doneCount} of {steps.length} done
+              </span>
             </div>
-            <ol className="grid sm:grid-cols-2 lg:grid-cols-5">
-              {steps.map((s, i) => (
-                <li key={s.label} className="border-b border-line-2 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0">
-                  <Link href={s.href} className="flex h-full items-start gap-2.5 px-4 py-3.5 hover:bg-black/[0.02]">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
-                      {s.done ? <ScribbleTick className="h-5 w-5" immediate delay={0.2 + i * 0.1} /> : <span className="tabular text-[12px] text-faint">{i + 1}</span>}
-                    </span>
-                    <span className={cn("text-[13px] leading-snug", s.done ? "text-muted line-through decoration-faint" : "text-ink")}>{s.label}</span>
-                  </Link>
-                </li>
-              ))}
+            <ol className="grid gap-1 px-3 py-3 sm:grid-cols-5 sm:gap-0 sm:px-2 sm:py-5">
+              {steps.map((s, i) => {
+                const current = i === nextStep;
+                const lineDone = s.done && steps[i + 1]?.done;
+                return (
+                  <li key={s.label} className="relative">
+                    {/* Connector to the next step (desktop only) */}
+                    {i < steps.length - 1 && (
+                      <span
+                        aria-hidden
+                        className={cn("absolute left-[calc(1rem+28px)] right-2 top-[14px] hidden h-px sm:block", lineDone ? "bg-vermilion/60" : "bg-line")}
+                      />
+                    )}
+                    <Link href={s.href} className="group relative flex items-center gap-3 rounded-[6px] px-2 py-2 hover:bg-black/[0.025] sm:flex-col sm:items-start sm:gap-2.5">
+                      <span
+                        className={cn(
+                          "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold tabular",
+                          s.done && "border-[#e9c4ba] bg-pencil-soft",
+                          current && "border-burgundy bg-burgundy text-ivory",
+                          !s.done && !current && "border-line bg-panel text-label",
+                        )}
+                      >
+                        {s.done ? <ScribbleTick className="h-4 w-4" color="var(--color-vermilion)" immediate delay={0.2 + i * 0.1} /> : i + 1}
+                      </span>
+                      <span className="min-w-0 leading-tight">
+                        <span className={cn("block text-[13.5px]", s.done ? "text-muted" : "font-medium text-ink")}>{s.label}</span>
+                        <span className={cn("mt-0.5 block text-[12px]", current ? "text-vermilion" : "text-label")}>{s.note}</span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ol>
           </Card>
         </Settle>

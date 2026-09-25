@@ -120,9 +120,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="px-3 pb-3">
-        <div className="mb-3 flex items-center gap-2 px-2.5 text-[11.5px] text-label">
-          <BrandMark className="h-3 w-3" />
-          <Wordmark className="h-[13px] opacity-80" />
+        <div className="mb-3 px-2.5">
+          <Wordmark className="h-[14px] w-auto opacity-80" />
         </div>
         <div className="flex items-center gap-2.5 rounded-[8px] border border-line bg-panel p-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#efe3e6] text-[12px] font-semibold text-burgundy">

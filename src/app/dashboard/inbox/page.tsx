@@ -6,7 +6,7 @@ import { ArrowLeft, RefreshCw, Send } from "lucide-react";
 import { useApp } from "@/components/app/context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
-import { Card, Empty, Loader, Settle, Skeleton } from "@/components/ui/kit";
+import { Card, Empty, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { Hand } from "@/components/sketch/hand";
 import { callFunction } from "@/lib/supabase/client";
@@ -37,6 +37,74 @@ function stripQuote(text: string) {
   return (cut > 0 ? text.slice(0, cut) : text).trim();
 }
 
+/** Same box model as a thread row: each bar sits in a span with the real text's size and line height. */
+function ThreadRowSkeleton({ wide }: { wide?: boolean }) {
+  return (
+    <li className="flex items-start gap-3 border-b border-line-2 px-4 py-3">
+      <span className="mt-1.5 h-1.5 w-1.5 shrink-0" />
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="flex items-baseline justify-between gap-2 text-[13.5px]">
+          <Skeleton className={cn("inline-block h-[0.8em] align-middle", wide ? "w-32" : "w-24")} />
+          <Skeleton className="inline-block h-[0.75em] w-10 align-middle" />
+        </span>
+        <span className="mt-0.5 block text-[12.5px]">
+          <Skeleton className={cn("inline-block h-[0.8em] align-middle", wide ? "w-52" : "w-44")} />
+        </span>
+        <span className="mt-0.5 block text-[11.5px]">
+          <Skeleton className="inline-block h-[0.8em] w-28 align-middle" />
+        </span>
+      </span>
+    </li>
+  );
+}
+
+function MessageSkeleton({ mine, lines }: { mine?: boolean; lines: number[] }) {
+  return (
+    <div className={cn("max-w-[640px] rounded-[8px] border px-4 py-3", mine ? "ml-auto border-line bg-panel-2" : "border-[#f0cfc6] bg-panel")}>
+      <div className="mb-2 flex items-baseline justify-between gap-3 text-[12px]">
+        <Skeleton className="inline-block h-[0.85em] w-16 align-middle" />
+        <Skeleton className="inline-block h-[0.85em] w-24 align-middle" />
+      </div>
+      <div className="text-[14px] leading-relaxed">
+        {lines.map((w, i) => (
+          <span key={i} className="block">
+            <Skeleton className="inline-block h-[0.75em] align-middle" style={{ width: `${w}%` }} />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors the open thread: header, two messages, reply box. */
+function ThreadSkeleton() {
+  return (
+    <div aria-hidden className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-3 border-b border-line-2 px-5 py-3.5">
+        <div className="min-w-0 leading-normal">
+          <span className="block text-[15px]">
+            <Skeleton className="inline-block h-[0.8em] w-64 align-middle" />
+          </span>
+          <span className="block text-[12.5px]">
+            <Skeleton className="inline-block h-[0.8em] w-40 align-middle" />
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 space-y-4 px-5 py-5">
+        <MessageSkeleton mine lines={[92, 100, 84, 96, 40]} />
+        <MessageSkeleton lines={[88, 64]} />
+      </div>
+      <div className="border-t border-line-2 p-4">
+        <Skeleton className="h-[90px] w-full rounded-[6px]" />
+        <div className="mt-2 flex items-center justify-between">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-8 w-[104px] rounded-[6px]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InboxView() {
   const { inbox, setUnread } = useApp();
   const toast = useToast();
@@ -46,6 +114,7 @@ function InboxView() {
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,21 +137,50 @@ function InboxView() {
     return () => clearInterval(id);
   }, [loadThreads]);
 
-  useEffect(() => {
-    if (!selected) return setThread(null);
-    setLoadingThread(true);
-    setReply("");
-    callFunction<{ thread: ThreadDetail }>("inbox", { action: "thread", thread_id: selected })
-      .then(async (r) => {
+  const loadThread = useCallback(
+    async (id: string, quiet = false) => {
+      if (!quiet) {
+        setLoadingThread(true);
+        setThreadError(null);
+      }
+      try {
+        const r = await callFunction<{ thread: ThreadDetail }>("inbox", { action: "thread", thread_id: id });
         setThread(r.thread);
         if (!r.thread.isRead) {
-          await callFunction("inbox", { action: "mark_read", thread_id: selected }).catch(() => {});
-          setThreads((all) => all?.map((t) => (t.id === selected ? { ...t, isRead: true } : t)) ?? null);
+          await callFunction("inbox", { action: "mark_read", thread_id: id }).catch(() => {});
+          setThreads((all) => all?.map((t) => (t.id === id ? { ...t, isRead: true } : t)) ?? null);
         }
-      })
-      .catch(() => setThread(null))
-      .finally(() => setLoadingThread(false));
-  }, [selected]);
+      } catch (e) {
+        if (!quiet) {
+          setThread(null);
+          setThreadError(e instanceof Error ? e.message : "Something went wrong");
+        }
+      } finally {
+        if (!quiet) setLoadingThread(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selected) {
+      setThread(null);
+      setThreadError(null);
+      return;
+    }
+    setReply("");
+    void loadThread(selected);
+  }, [selected, loadThread]);
+
+  // A reply landing anywhere refreshes the list, and the open thread without a skeleton flash.
+  useEffect(() => {
+    const onReply = () => {
+      void loadThreads();
+      if (selected) void loadThread(selected, true);
+    };
+    window.addEventListener("centrale:reply", onReply);
+    return () => window.removeEventListener("centrale:reply", onReply);
+  }, [selected, loadThreads, loadThread]);
 
   // The sidebar badge follows the thread list.
   useEffect(() => {
@@ -96,8 +194,7 @@ function InboxView() {
       await callFunction("inbox", { action: "reply", thread_id: thread.id, body: reply });
       toast({ title: "Reply sent" });
       setReply("");
-      const r = await callFunction<{ thread: ThreadDetail }>("inbox", { action: "thread", thread_id: thread.id });
-      setThread(r.thread);
+      await loadThread(thread.id, true);
       void loadThreads();
     } catch (e) {
       toast({ title: "Could not send", body: e instanceof Error ? e.message : undefined, tone: "error" });
@@ -126,17 +223,17 @@ function InboxView() {
         <Card className="grid min-h-[calc(100dvh-210px)] overflow-hidden md:grid-cols-[340px_1fr]">
           <div className={cn("border-line md:border-r", selected && "hidden md:block")}>
             {!threads ? (
-              <div className="space-y-3 p-4">
-                {Array.from({ length: 6 }, (_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+              <ul aria-hidden>
+                {Array.from({ length: 7 }, (_, i) => (
+                  <ThreadRowSkeleton key={i} wide={i % 3 === 0} />
                 ))}
-              </div>
+              </ul>
             ) : threads.length === 0 ? (
               <Empty title="No threads yet" body="Email an investor from the Investors tab. Their reply lands here and we email you when it does." />
             ) : (
               <ul className="quiet-scroll max-h-[calc(100dvh-212px)] overflow-y-auto">
-                {threads.map((t) => (
-                  <li key={t.id}>
+                {threads.map((t, i) => (
+                  <li key={t.id} className="settle" style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}>
                     <button
                       onClick={() => open(t.id)}
                       className={cn(
@@ -171,10 +268,14 @@ function InboxView() {
                   replies arrive in real time
                 </Hand>
               </div>
+            ) : threadError ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Empty title="Could not open this thread" body={threadError} action={<Button size="sm" onClick={() => open(null)}>Back to inbox</Button>} />
+              </div>
             ) : loadingThread || !thread ? (
-              <Loader label="Opening thread" />
+              <ThreadSkeleton />
             ) : (
-              <>
+              <div className="settle flex min-h-0 flex-1 flex-col">
                 <div className="flex items-center gap-3 border-b border-line-2 px-5 py-3.5">
                   <button className="rounded-[6px] p-1 text-label hover:bg-black/[0.04] md:hidden" onClick={() => open(null)} aria-label="Back">
                     <ArrowLeft className="h-4 w-4" />
@@ -219,7 +320,7 @@ function InboxView() {
                     </Button>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </Card>

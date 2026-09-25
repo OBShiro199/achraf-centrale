@@ -1,42 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownUp, Download, Globe, Mail, MessageCircle, Phone, Search, Star } from "lucide-react";
+import { Globe, Mail, MessageCircle, Phone, Search, Star } from "lucide-react";
 import { ComposeModal } from "@/components/app/compose";
 import { FilterMenu, Toggle } from "@/components/app/filter-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, Card, Drawer, Empty, Pill, Settle, Skeleton } from "@/components/ui/kit";
+import { InvestorTable, type Sort, type SortKey } from "@/components/app/investor-table";
+import { ExportMenu } from "@/components/app/export-menu";
 import { ValueIcon } from "@/components/onboarding/icons";
 import { Hand } from "@/components/sketch/hand";
 import { regionOf, useInvestors, type InvestorRow } from "@/lib/data";
 import { INVESTOR_TYPES, label, REVENUE, SECTORS, STAGES, VALUES } from "@/lib/taxonomy";
 import { chequeRange, cn, money } from "@/lib/utils";
-import { downloadInvestorsCsv } from "@/lib/export";
 
-type SortKey = "score" | "name" | "cheque" | "fund";
 const CHEQUE_BANDS = [
   { value: "small", label: "Up to $100k", test: (i: InvestorRow) => (i.check_min_usd ?? 0) <= 100_000 },
   { value: "mid", label: "$100k to $1m", test: (i: InvestorRow) => (i.check_max_usd ?? 0) >= 100_000 && (i.check_min_usd ?? 0) <= 1_000_000 },
   { value: "large", label: "Over $1m", test: (i: InvestorRow) => (i.check_max_usd ?? 0) > 1_000_000 },
 ];
-
-function FitBar({ score }: { score: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-line-3">
-        <div className={cn("h-full rounded-full", score >= 60 ? "bg-burgundy" : score >= 40 ? "bg-[#a8968c]" : "bg-[#d5c8ba]")} style={{ width: `${score}%` }} />
-      </div>
-      <span className="tabular w-6 text-right text-[12.5px] font-medium text-ink">{score}</span>
-    </div>
-  );
-}
-
-function Status({ r }: { r: InvestorRow }) {
-  if (r.replied) return <Pill tone="green">Replied</Pill>;
-  if (r.opened) return <Pill tone="amber">Opened</Pill>;
-  if (r.contacted) return <Pill tone="burgundy">Contacted</Pill>;
-  return <span className="text-[12px] text-faint">Not contacted</span>;
-}
 
 function Chips({ items, map, max = 2 }: { items: string[]; map: Record<string, string>; max?: number }) {
   return (
@@ -48,23 +30,6 @@ function Chips({ items, map, max = 2 }: { items: string[]; map: Record<string, s
       ))}
       {items.length > max && <span className="text-[11.5px] text-label">+{items.length - max}</span>}
     </div>
-  );
-}
-
-type Sort = { key: SortKey; dir: 1 | -1 };
-
-function Th({ k, sort, onSort, children, className }: { k?: SortKey; sort: Sort; onSort: (k: SortKey) => void; children: React.ReactNode; className?: string }) {
-  return (
-    <th className={cn("sticky top-0 z-10 border-b border-r border-line bg-[#faf6ef] px-3 py-2 text-left text-[12px] font-medium text-ink last:border-r-0", className)}>
-      {k ? (
-        <button className="inline-flex items-center gap-1 hover:text-vermilion" onClick={() => onSort(k)}>
-          {children}
-          <ArrowDownUp className={cn("h-3 w-3", sort.key === k ? "text-vermilion" : "text-faint")} />
-        </button>
-      ) : (
-        children
-      )}
-    </th>
   );
 }
 
@@ -127,24 +92,22 @@ export default function InvestorsPage() {
 
   return (
     <div className="px-4 py-6 md:px-6">
-      <Settle className="flex flex-wrap items-end justify-between gap-4">
+      <Settle className="relative z-30 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-[26px] tracking-[-0.04em]">Investor database</h2>
           <p className="mt-1 text-[14px] text-muted">
-            {rows ? `${filtered.length} of ${rows.length} investors shown.` : "Loading investors."} Fit is scored against your startup profile.
+            {rows ? `${filtered.length} of ${rows.length} investors shown.` : <Skeleton className="inline-block h-3 w-40 align-middle" />} Fit is scored against your startup profile.
           </p>
         </div>
         <div className="flex items-center gap-4">
           <Hand className="hidden text-[20px] md:block" tilt={-2}>
             sector 30, stage 20, values 15, revenue 10
           </Hand>
-          <Button size="sm" disabled={!rows || filtered.length === 0} onClick={() => downloadInvestorsCsv(filtered)}>
-            <Download className="h-3.5 w-3.5" /> Export {rows ? filtered.length : ""} to CSV
-          </Button>
+          <ExportMenu rows={rows ? filtered : null} />
         </div>
       </Settle>
 
-      <Settle delay={60} className="mt-5 flex flex-wrap items-center gap-2">
+      <Settle delay={60} className="relative z-20 mt-5 flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-label" />
           <input
@@ -178,78 +141,15 @@ export default function InvestorsPage() {
 
       <Settle delay={120} className="mt-4">
         <Card className="overflow-hidden">
-          <div className="quiet-scroll overflow-x-auto">
-            <table className="w-full min-w-[1320px] border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <Th className="w-10 px-0 text-center" sort={sort} onSort={onSort}>
-                    <Star className="mx-auto h-3.5 w-3.5 text-label" />
-                  </Th>
-                  <Th k="name" sort={sort} onSort={onSort}>Investor</Th>
-                  <Th sort={sort} onSort={onSort}>Firm</Th>
-                  <Th sort={sort} onSort={onSort}>Type</Th>
-                  <Th sort={sort} onSort={onSort}>Stages</Th>
-                  <Th sort={sort} onSort={onSort}>Sectors</Th>
-                  <Th k="cheque" sort={sort} onSort={onSort}>Cheque</Th>
-                  <Th k="fund" sort={sort} onSort={onSort}>Fund size</Th>
-                  <Th sort={sort} onSort={onSort}>Location</Th>
-                  <Th k="score" sort={sort} onSort={onSort}>Fit</Th>
-                  <Th sort={sort} onSort={onSort}>Status</Th>
-                  <Th className="w-[92px]" sort={sort} onSort={onSort}> </Th>
-                </tr>
-              </thead>
-              <tbody>
-                {!rows
-                  ? Array.from({ length: 8 }, (_, i) => (
-                      <tr key={i}>
-                        <td colSpan={12} className="border-b border-line-2 px-3 py-2.5">
-                          <Skeleton className="h-6 w-full" />
-                        </td>
-                      </tr>
-                    ))
-                  : filtered.map((r) => (
-                      <tr key={r.id} onClick={() => setOpen(r)} className="group cursor-pointer hover:bg-[#fbf7f1]">
-                        <td className="border-b border-r border-line-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => void toggleSave(r.id, r.saved)} className="p-2" aria-label={r.saved ? "Unsave" : "Save"}>
-                            <Star className={cn("h-4 w-4 transition-colors", r.saved ? "fill-vermilion text-vermilion" : "text-faint hover:text-muted")} strokeWidth={1.8} />
-                          </button>
-                        </td>
-                        <td className="border-b border-r border-line-2 px-3 py-2">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar name={r.full_name} />
-                            <div className="whitespace-nowrap leading-tight">
-                              <p className="font-medium text-ink">{r.full_name}</p>
-                              <p className="text-[12px] text-label">{r.title}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap border-b border-r border-line-2 px-3 py-2 text-ink">{r.firm}</td>
-                        <td className="border-b border-r border-line-2 px-3 py-2 text-muted">{label(INVESTOR_TYPES, r.investor_type)}</td>
-                        <td className="border-b border-r border-line-2 px-3 py-2">
-                          <Chips items={r.stages} map={STAGES} max={2} />
-                        </td>
-                        <td className="border-b border-r border-line-2 px-3 py-2">
-                          <Chips items={r.sectors} map={SECTORS} max={2} />
-                        </td>
-                        <td className="tabular whitespace-nowrap border-b border-r border-line-2 px-3 py-2 text-muted">{chequeRange(r.check_min_usd, r.check_max_usd)}</td>
-                        <td className="tabular border-b border-r border-line-2 px-3 py-2 text-muted">{r.fund_size_usd ? money(r.fund_size_usd) : "Personal"}</td>
-                        <td className="whitespace-nowrap border-b border-r border-line-2 px-3 py-2 text-muted">{r.location}</td>
-                        <td className="border-b border-r border-line-2 px-3 py-2">
-                          <FitBar score={r.score} />
-                        </td>
-                        <td className="border-b border-r border-line-2 px-3 py-2">
-                          <Status r={r} />
-                        </td>
-                        <td className="border-b border-line-2 px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" onClick={() => setComposeFor(r)}>
-                            <Mail className="h-3.5 w-3.5" /> Email
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
-          </div>
+          <InvestorTable
+            rows={filtered}
+            loading={!rows}
+            sort={sort}
+            onSort={onSort}
+            onOpen={setOpen}
+            onSave={(r) => void toggleSave(r.id, r.saved)}
+            onEmail={setComposeFor}
+          />
           {rows && filtered.length === 0 && <Empty title="No investors match these filters" action={<Button size="sm" onClick={clearAll}>Clear filters</Button>} />}
         </Card>
       </Settle>

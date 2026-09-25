@@ -24,8 +24,12 @@ function Stat({ label: l, value, note, loading }: { label: string; value: string
   return (
     <Card className="px-5 py-4">
       <p className="text-[12.5px] text-label">{l}</p>
-      {loading ? <Skeleton className="mt-2 h-8 w-16" /> : <p className="display tabular mt-1 text-[32px] leading-none tracking-[-0.045em] text-display">{value}</p>}
-      <p className="mt-2 text-[12px] text-label">{note}</p>
+      {loading ? (
+        <Skeleton className="mt-1 h-8 w-14" />
+      ) : (
+        <p className="display tabular settle mt-1 text-[32px] leading-none tracking-[-0.045em] text-display">{value}</p>
+      )}
+      <p className="mt-2 text-[12px] text-label">{loading ? <Skeleton className="inline-block h-[0.8em] w-28 align-middle" /> : note}</p>
     </Card>
   );
 }
@@ -77,8 +81,9 @@ function ActivityChart({ days }: { days: { d: Date; sent: number; replies: numbe
 }
 
 export default function HomePage() {
-  const { profile, startup, signedUpAt, inbox } = useApp();
-  const { stats, messages, reload } = useStats();
+  const { profile, startup, signedUpAt, inbox, initialStats } = useApp();
+  const { stats: liveStats, messages, reload } = useStats();
+  const stats = liveStats ?? initialStats;
   const { rows, reload: reloadInvestors } = useInvestors();
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
   const [composeFor, setComposeFor] = useState<InvestorRow | null>(null);
@@ -227,7 +232,7 @@ export default function HomePage() {
                 }
               />
               <div className="relative px-5 pb-3 pt-5">
-                {messages ? <ActivityChart days={days} /> : <Skeleton className="h-[160px] w-full" />}
+                {messages ? <ActivityChart days={days} /> : <Skeleton className="aspect-[640/172] w-full" />}
                 {messages && messages.length === 0 && (
                   <p className="absolute inset-0 flex items-center justify-center text-[13px] text-label">Your first sends will draw here.</p>
                 )}
@@ -247,15 +252,30 @@ export default function HomePage() {
                 }
               />
               {!rows ? (
-                <div className="space-y-3 p-5">
+                <ul aria-hidden>
                   {Array.from({ length: 5 }, (_, i) => (
-                    <Skeleton key={i} className="h-9 w-full" />
+                    <li key={i} className="flex items-center gap-3 border-b border-line-2 px-5 py-3 last:border-b-0">
+                      <Skeleton className="h-7 w-7 rounded-[6px]" />
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <span className="block text-[13.5px]">
+                          <Skeleton className="inline-block h-[0.8em] align-middle" style={{ width: 96 + (i % 3) * 18 }} />
+                        </span>
+                        <span className="block text-[12px]">
+                          <Skeleton className="inline-block h-[0.8em] align-middle" style={{ width: 150 + (i % 2) * 40 }} />
+                        </span>
+                      </div>
+                      <div className="hidden w-28 items-center gap-2 sm:flex">
+                        <Skeleton className="h-1.5 flex-1 rounded-full" />
+                        <Skeleton className="h-3 w-6" />
+                      </div>
+                      <Skeleton className="h-8 w-[76px] rounded-[6px]" />
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : (
                 <ul>
-                  {top.map((r) => (
-                    <li key={r.id} className="flex items-center gap-3 border-b border-line-2 px-5 py-3 last:border-b-0">
+                  {top.map((r, i) => (
+                    <li key={r.id} className="settle flex items-center gap-3 border-b border-line-2 px-5 py-3 last:border-b-0" style={{ animationDelay: `${i * 30}ms` }}>
                       <Avatar name={r.full_name} />
                       <div className="min-w-0 flex-1 leading-tight">
                         <p className="truncate text-[13.5px] font-medium text-ink">{r.full_name}</p>
@@ -299,17 +319,28 @@ export default function HomePage() {
               }
             />
             {!threads ? (
-              <div className="space-y-3 p-5">
-                {Array.from({ length: 4 }, (_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+              <ul aria-hidden>
+                {Array.from({ length: 6 }, (_, i) => (
+                  <li key={i} className="flex items-center gap-3 border-b border-line-2 px-5 py-3">
+                    <span className="h-1.5 w-1.5 shrink-0" />
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <span className="block text-[13.5px]">
+                        <Skeleton className="inline-block h-[0.8em] align-middle" style={{ width: 90 + (i % 3) * 22 }} />
+                      </span>
+                      <span className="block text-[12px]">
+                        <Skeleton className="inline-block h-[0.8em] align-middle" style={{ width: 140 + (i % 2) * 50 }} />
+                      </span>
+                    </div>
+                    <Skeleton className="h-3 w-12" />
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : threads.length === 0 ? (
               <Empty title="Nothing here yet" body="Send your first email and replies will appear here, with an email to you when one lands." />
             ) : (
               <ul>
-                {threads.slice(0, 7).map((t) => (
-                  <li key={t.id}>
+                {threads.slice(0, 7).map((t, i) => (
+                  <li key={t.id} className="settle" style={{ animationDelay: `${i * 30}ms` }}>
                     <Link href={`/dashboard/inbox?thread=${t.id}`} className="flex items-center gap-3 border-b border-line-2 px-5 py-3 hover:bg-black/[0.02]">
                       <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.isRead ? "bg-transparent" : "bg-vermilion")} />
                       <div className="min-w-0 flex-1 leading-tight">

@@ -42,8 +42,9 @@ function Favicon({ src, name, className }: { src: string | null; name: string; c
         {initials(name) || "C"}
       </span>
     );
-  // eslint-disable-next-line @next/next/no-img-element
   return (
+    // External favicons of unknown size; next/image adds nothing here.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt=""
@@ -215,6 +216,7 @@ function ReplyWatcher() {
             const m = payload.new as OutreachMessage;
             if (m.direction !== "inbound") return;
             void refresh();
+            window.dispatchEvent(new CustomEvent("centrale:reply"));
             let who = m.from_addr ?? "Someone";
             if (m.investor_id) {
               const { data } = await supabase.from("investors").select("full_name,firm").eq("id", m.investor_id).single();

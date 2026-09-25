@@ -45,8 +45,10 @@ export function Avatar({ name, className }: { name: string; className?: string }
   );
 }
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("skeleton", className)} />;
+/** A span so it is valid inside text (p, label); block unless the caller asks for inline-block. */
+export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  const inline = className?.includes("inline-block");
+  return <span aria-hidden className={cn("skeleton", !inline && "block", className)} style={style} />;
 }
 
 export function Settle({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {

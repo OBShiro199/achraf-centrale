@@ -63,6 +63,32 @@ export const INVESTOR_TYPES: Record<string, string> = {
   family_office: "Family office",
   accelerator: "Accelerator",
   cvc: "Corporate VC",
+  pe: "Private equity",
+};
+
+/** What a contact does at their firm. Derived from job titles in the investor directory. */
+export const ROLES: Record<string, string> = {
+  partner: "Partner or GP",
+  principal: "Principal or director",
+  associate: "Associate or analyst",
+  angel: "Angel",
+  venture_partner: "Venture partner or scout",
+  operating: "Operating or platform",
+  investor_relations: "Investor relations",
+  lp: "Limited partner",
+  other: "Other",
+};
+
+export const REGIONS: Record<string, string> = {
+  UK: "United Kingdom",
+  Europe: "Europe",
+  US: "United States",
+  Canada: "Canada",
+  "Middle East": "Middle East and Israel",
+  Asia: "Asia",
+  Oceania: "Australia and New Zealand",
+  "Latin America": "Latin America",
+  Africa: "Africa",
 };
 
 export const label = (map: Record<string, string>, key?: string | null) => (key ? map[key] ?? key : "");

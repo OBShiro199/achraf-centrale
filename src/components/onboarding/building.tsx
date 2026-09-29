@@ -2,22 +2,29 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Draw, ScribbleBurst, ScribbleCross, ScribbleTick } from "@/components/sketch/draw";
 import { Hand } from "@/components/sketch/hand";
 import { callFunction, createClient } from "@/lib/supabase/client";
-import type { Inbox, Match, Startup } from "@/lib/types";
+import type { Inbox, Startup } from "@/lib/types";
 import { BrandMark } from "@/components/landing/logo";
 
-type TaskState = "pending" | "running" | "done" | "error";
-type TaskKey = "read" | "profile" | "inbox" | "match";
+type TaskState = "pending" | "running" | "done" | "error" | "background";
+type TaskKey = "read" | "profile" | "inbox" | "investors" | "match" | "deck";
 
 const ease = [0.22, 0.61, 0.21, 1] as const;
+/** Nice-to-haves: if these fail the founder still gets to the dashboard. */
+const OPTIONAL: TaskKey[] = ["investors", "deck"];
+/** How long to hold the finish for the deck once everything else is done; after that it carries on in the background. */
+const DECK_GRACE_MS = 6000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function StateIcon({ state }: { state: TaskState }) {
   if (state === "done") return <ScribbleTick className="h-5 w-5" immediate />;
   if (state === "error") return <ScribbleCross className="h-4 w-4" immediate />;
+  if (state === "background") return <span className="pulse-dot block h-2 w-2 rounded-full bg-vermilion" />;
   if (state === "running")
     return (
       <motion.svg viewBox="0 0 20 20" className="h-5 w-5" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: "linear" }}>
@@ -87,16 +94,37 @@ function SketchLoop({ done }: { done: boolean }) {
   );
 }
 
-export function Building({ domain, needsScrape }: { domain: string; needsScrape: boolean }) {
+export function Building({ domain, needsScrape, wantsDeck = false }: { domain: string; needsScrape: boolean; wantsDeck?: boolean }) {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Record<TaskKey, TaskState>>({ read: "pending", profile: "pending", inbox: "pending", match: "pending" });
+  const [tasks, setTasks] = useState<Record<TaskKey, TaskState>>({
+    read: "pending",
+    profile: "pending",
+    inbox: "pending",
+    investors: "pending",
+    match: "pending",
+    deck: wantsDeck ? "pending" : "done",
+  });
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [fits, setFits] = useState<{ total: number; strong: number } | null>(null);
   const started = useRef(false);
+  const deckRun = useRef<Promise<void> | null>(null);
 
   const set = (k: TaskKey, s: TaskState) => setTasks((t) => ({ ...t, [k]: s }));
+
+  /** Fires generate-deck once. It takes 30 to 90 seconds and the deck page shows its live status, so nothing waits on it for long. */
+  const startDeck = useCallback(() => {
+    if (!wantsDeck || deckRun.current) return;
+    set("deck", "running");
+    deckRun.current = callFunction("generate-deck", {})
+      .then(() => set("deck", "done"))
+      .catch(() => {
+        // Non-fatal: the founder can retry from the deck page, or from Try again here.
+        set("deck", "error");
+        deckRun.current = null;
+      });
+  }, [wantsDeck]);
 
   const run = useCallback(async () => {
     setError(null);
@@ -115,16 +143,30 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
       if (profileRes.status === "fulfilled") {
         setStartup(profileRes.value.startup);
         set("profile", "done");
+        // The deck reads the profile we just wrote, so it starts here and runs alongside matching.
+        startDeck();
       } else set("profile", "error");
       if (inboxRes.status === "fulfilled") {
         setInbox(inboxRes.value.inbox);
         set("inbox", "done");
       } else set("inbox", "error");
 
+      set("investors", "running");
+      try {
+        await callFunction<{ ok: boolean; count: number }>("match-investors", {});
+        set("investors", "done");
+      } catch {
+        set("investors", "error");
+      }
+
       set("match", "running");
-      const { data: matches } = await supabase.rpc("match_investors");
-      const list = (matches ?? []) as Match[];
-      setFits({ total: list.length, strong: list.filter((m) => m.score >= 60).length });
+      // Totals only: one row each, the count comes back with it.
+      const count = (filters: Record<string, unknown>) =>
+        supabase
+          .rpc("search_investors", { p_filters: filters, p_sort: "match", p_dir: "desc", p_limit: 1, p_offset: 0 })
+          .then(({ data }) => (data as { total?: number } | null)?.total ?? 0);
+      const [total, strong] = await Promise.all([count({}), count({ min_score: 60 })]);
+      setFits({ total, strong });
       set("match", "done");
 
       const failed = [profileRes, inboxRes].find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
@@ -132,10 +174,16 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
 
       const { data: userData } = await supabase.auth.getUser();
       await supabase.from("startups").update({ onboarding_completed_at: new Date().toISOString() }).eq("owner_id", userData.user!.id);
+
+      // Give a quick deck a moment to land, then let it finish in the background.
+      if (deckRun.current) {
+        await Promise.race([deckRun.current, sleep(DECK_GRACE_MS)]);
+        setTasks((t) => (t.deck === "running" ? { ...t, deck: "background" } : t));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     }
-  }, [domain, needsScrape]);
+  }, [domain, needsScrape, startDeck]);
 
   useEffect(() => {
     if (started.current) return;
@@ -143,7 +191,9 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
     void run();
   }, [run]);
 
-  const allDone = Object.values(tasks).every((s) => s === "done");
+  const allDone = (Object.entries(tasks) as [TaskKey, TaskState][]).every(([k, s]) =>
+    OPTIONAL.includes(k) ? s === "done" || s === "error" || s === "background" : s === "done",
+  );
 
   async function continueAnyway() {
     const supabase = createClient();
@@ -156,7 +206,9 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
     { key: "read", label: `Reading ${domain}` },
     { key: "profile", label: "Writing your startup profile" },
     { key: "inbox", label: "Setting up your sending inbox" },
+    { key: "investors", label: "Matching you with investors" },
     { key: "match", label: "Scoring investors against your profile" },
+    ...(wantsDeck ? [{ key: "deck" as const, label: "Drafting your pitch deck" }] : []),
   ];
 
   return (
@@ -167,7 +219,7 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
         {!allDone ? (
           <motion.div key="working" exit={{ opacity: 0, y: -8 }} className="w-full">
             <h1 className="mt-8 text-[30px] tracking-[-0.04em]">Building your startup profile</h1>
-            <p className="mt-2 text-[15px] text-muted">About twenty seconds. Leave this tab open.</p>
+            <p className="mt-2 text-[15px] text-muted">Under a minute. Leave this tab open.</p>
             <ul className="mx-auto mt-8 w-full max-w-[380px] text-left">
               {rows.map((r) => (
                 <li key={r.key} className="flex items-center gap-3 border-b border-line py-3 text-[14.5px]">
@@ -228,6 +280,23 @@ export function Building({ domain, needsScrape }: { domain: string; needsScrape:
                     {fits?.total} scored, {fits?.strong} strong fits
                   </p>
                 </div>
+                {wantsDeck && (
+                  <div className="col-span-2 flex items-center gap-2.5 border-t border-line pt-3">
+                    <span className="flex h-5 w-5 items-center justify-center">
+                      <StateIcon state={tasks.deck} />
+                    </span>
+                    <p className="min-w-0 flex-1 text-[13px] text-muted">
+                      {tasks.deck === "done"
+                        ? "Your pitch deck is drafted."
+                        : tasks.deck === "error"
+                          ? "We could not draft your deck this time. Try again from the deck page."
+                          : "Your pitch deck is still being drafted. About a minute."}
+                    </p>
+                    <Link href="/dashboard/deck" className="shrink-0 text-[13px] font-medium text-ink underline decoration-faint underline-offset-4 hover:decoration-ink">
+                      {tasks.deck === "done" ? "Read it" : "Pitch deck"}
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-8 flex flex-col items-center gap-3">

@@ -45,18 +45,21 @@ Founder: ${founder}
 </startup>
 
 <investor>
-Name: ${investor.full_name}, ${investor.title} at ${investor.firm}
+Name: ${investor.full_name}, ${investor.title ?? "investor"} at ${investor.firm}
+Location: ${investor.location ?? ""}
 Type: ${label(INVESTOR_TYPES, investor.investor_type)}
 Stages: ${(investor.stages ?? []).map((s: string) => label(STAGES, s)).join(", ")}
 Sectors: ${(investor.sectors ?? []).map((s: string) => label(SECTORS, s)).join(", ")}
 Thesis: ${investor.thesis ?? ""}
-Portfolio: ${(investor.portfolio ?? []).join(", ")}
+About the firm: ${(investor.firm_description ?? "").replace(/\s+/g, " ").slice(0, 800)}
+Focus keywords: ${(investor.keywords ?? []).slice(0, 25).join(", ")}
+Portfolio: ${(investor.portfolio ?? []).join(", ") || "not listed"}
 Focus: ${investor.focus_note ?? ""}
 Values: ${(investor.values ?? []).map((v: string) => label(VALUES, v)).join(", ") || "none stated"}
 </investor>`;
 
   const draft = await structured<{ subject: string; body: string }>({
-    system: `You write first emails from startup founders to investors. They are short, specific and easy to say yes to. Open with the single strongest genuine overlap between the startup and this investor (stage, sector, values, thesis or focus). The founder has already chosen to contact this investor, so never argue against the fit or apologise for it. Name portfolio companies only to show you know the fund; never claim anything about what those companies do. Ask for a 20 minute call. Sign off with the founder's first name and company name. Never invent metrics, customers or names that are not in the startup context. Never use placeholders in brackets. ${HOUSE_STYLE}`,
+    system: `You write first emails from startup founders to investors. They are short, specific and easy to say yes to. Open with the single strongest genuine overlap between the startup and this investor (stage, sector, values, thesis, focus keywords or what the firm says about itself). The founder has already chosen to contact this investor, so never argue against the fit or apologise for it. Name portfolio companies only to show you know the fund; never claim anything about what those companies do. Ask for a 20 minute call. Sign off with the founder's first name and company name. Never invent metrics, customers or names that are not in the startup context. Never use placeholders in brackets. ${HOUSE_STYLE}`,
     content: [{ type: "text", text: `${context}\n\nWrite the email from ${founder} to ${investor.full_name}.` }],
     schema: SCHEMA,
     effort: "low",

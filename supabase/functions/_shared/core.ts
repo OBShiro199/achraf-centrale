@@ -53,6 +53,14 @@ export async function secret(name: string): Promise<string> {
   return data as string;
 }
 
+/** A client that acts as the caller, so RPCs that read auth.uid() see the founder. */
+export function userClient(req: Request) {
+  return createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+  });
+}
+
 export async function requireUser(req: Request): Promise<User> {
   const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw new HttpError(401, "Not signed in");

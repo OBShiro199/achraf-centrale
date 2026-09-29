@@ -5,12 +5,87 @@ import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { useApp } from "@/components/app/context";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, Select } from "@/components/ui/field";
 import { Card, CardHeader, Pill, Settle } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types";
+import type { Profile, Startup } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { SetupInboxButton } from "@/components/app/setup-inbox";
+
+const FOLLOW_UP_DAYS = [2, 3, 4, 5, 7, 10, 14];
+
+function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      className={cn("h-5 w-9 shrink-0 rounded-full p-[3px] transition-colors", on ? "bg-burgundy" : "bg-faint")}
+    >
+      <span className={cn("block h-3.5 w-3.5 rounded-full bg-panel transition-transform", on && "translate-x-4")} />
+    </button>
+  );
+}
+
+function FollowUps() {
+  const { startup, setStartup } = useApp();
+  const toast = useToast();
+  const [auto, setAuto] = useState(startup.auto_follow_up);
+  const [days, setDays] = useState(startup.follow_up_days);
+  const [saving, setSaving] = useState(false);
+  const dirty = auto !== startup.auto_follow_up || days !== startup.follow_up_days;
+  const options = FOLLOW_UP_DAYS.includes(startup.follow_up_days)
+    ? FOLLOW_UP_DAYS
+    : [...FOLLOW_UP_DAYS, startup.follow_up_days].sort((a, b) => a - b);
+
+  async function save() {
+    setSaving(true);
+    const { data, error } = await createClient()
+      .from("startups")
+      .update({ auto_follow_up: auto, follow_up_days: days })
+      .eq("id", startup.id)
+      .select()
+      .single<Startup>();
+    setSaving(false);
+    if (error) return toast({ title: "Could not save", body: error.message, tone: "error" });
+    setStartup(data);
+    toast({ title: "Saved", body: auto ? `Follow-ups go after ${days} days without a reply.` : "Automatic follow-ups are off." });
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Follow-ups" sub="One short nudge to each investor who has not replied to your first email." />
+      <div className="space-y-5 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13.5px] font-medium text-ink">Send follow-ups automatically</p>
+            <p className="mt-0.5 max-w-[480px] text-[12.5px] leading-relaxed text-label">
+              Each one waits in the Outbox before it sends, so you can edit or cancel it. A reply from the investor cancels it.
+            </p>
+          </div>
+          <Switch on={auto} onChange={setAuto} label="Send follow-ups automatically" />
+        </div>
+        <Field label="Wait before following up" hint="Counted from when your first email went out." className="md:max-w-[260px]">
+          <Select value={days} onChange={(e) => setDays(Number(e.target.value))} disabled={!auto}>
+            {options.map((d) => (
+              <option key={d} value={d}>
+                {d} days
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <div className="flex justify-end border-t border-line-2 px-5 py-3">
+        <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || !dirty}>
+          {saving ? "Saving" : "Save"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { profile, setProfile, inbox } = useApp();
@@ -96,6 +171,10 @@ export default function SettingsPage() {
       </Settle>
 
       <Settle delay={180}>
+        <FollowUps />
+      </Settle>
+
+      <Settle delay={240}>
         <Card>
           <CardHeader title="Session" />
           <div className="flex items-center justify-between p-5">

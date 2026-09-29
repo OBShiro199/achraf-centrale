@@ -20,6 +20,8 @@ export interface Draft {
   revenue: string | null;
   deckName: string | null;
   wantsDeck: boolean;
+  /** How many of the five deck questions are answered, when we are drafting the deck. */
+  deckAnswers?: number;
 }
 
 function Row({ k, v, done }: { k: string; v: React.ReactNode; done: boolean }) {
@@ -96,7 +98,11 @@ export function Worksheet({ draft }: { draft: Draft }) {
           />
           <Row k="Raising" v={raising} done={Boolean(draft.stage)} />
           <Row k="Revenue" v={label(REVENUE, draft.revenue)} done={Boolean(draft.revenue)} />
-          <Row k="Deck" v={draft.deckName ?? "please draft one"} done={Boolean(draft.deckName) || draft.wantsDeck} />
+          <Row
+            k="Deck"
+            v={draft.deckName ?? (draft.deckAnswers ? `please draft one, ${draft.deckAnswers} of 5 answers` : "please draft one")}
+            done={Boolean(draft.deckName) || draft.wantsDeck}
+          />
         </div>
       </div>
     </div>

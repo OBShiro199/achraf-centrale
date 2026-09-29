@@ -1,4 +1,4 @@
-import { SUPABASE_URL } from "./core.ts";
+import { admin, HttpError, secret, SUPABASE_URL } from "./core.ts";
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -16,3 +16,21 @@ export function toTrackedHtml(text: string, outreachId: string) {
 }
 
 export { escapeHtml };
+
+/**
+ * Test mode. Investors synced from the real directory only receive email once the Vault secret
+ * OUTREACH_LIVE is "true". Until then every send goes to the founder's own login email with a note
+ * saying who it was for, so testing can never reach a real investor.
+ */
+export async function resolveRecipient(investor: { email: string; full_name: string; source?: string | null }, ownerId: string) {
+  if (investor.source !== "contacts") return { to: investor.email, test: false };
+  const live = await secret("OUTREACH_LIVE").then((v) => v.trim().toLowerCase() === "true").catch(() => false);
+  if (live) return { to: investor.email, test: false };
+  const { data } = await admin.from("profiles").select("email").eq("id", ownerId).single();
+  if (!data?.email) throw new HttpError(409, "Test mode sends to your account email, and none is set");
+  return { to: data.email as string, test: true };
+}
+
+export function withTestNote(body: string, investor: { email: string; full_name: string }) {
+  return `Test mode: this email is addressed to ${investor.full_name} <${investor.email}>. Centrale sent it to you instead, because live sending to real investors is off.\n\n${body}`;
+}

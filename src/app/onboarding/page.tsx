@@ -6,20 +6,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/landing/logo";
 import { Button } from "@/components/ui/button";
 import { FormError, Input } from "@/components/ui/field";
+import { DeckAnswers } from "@/components/deck/answers";
 import { Building } from "@/components/onboarding/building";
 import { PeopleDots, ValueIcon } from "@/components/onboarding/icons";
 import { Tile } from "@/components/onboarding/tile";
 import { Worksheet, type Draft } from "@/components/onboarding/worksheet";
 import { Draw, ScribbleBox } from "@/components/sketch/draw";
 import { Hand } from "@/components/sketch/hand";
+import { answeredCount, cleanDeckInputs, type DeckInputs } from "@/lib/deck";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import { HEADCOUNT, INVESTOR_TYPES, REVENUE, STAGES, VALUES } from "@/lib/taxonomy";
 import type { Profile, Startup } from "@/lib/types";
 import { cn, DECK_EXTENSIONS, DECK_MAX_BYTES, faviconFor } from "@/lib/utils";
 
 const ease = [0.22, 0.61, 0.21, 1] as const;
-const STEPS = ["name", "domain", "team", "values", "stage", "revenue", "deck", "build"] as const;
+const STEPS = ["name", "domain", "team", "values", "stage", "revenue", "deck", "deck_answers", "build"] as const;
 type Step = (typeof STEPS)[number];
+/** Sub-steps share the number of the step they belong to and are not counted in the total. */
+const SUB_STEPS: Partial<Record<Step, Step>> = { deck_answers: "deck" };
+const COUNTED = STEPS.filter((s) => s !== "build" && !SUB_STEPS[s]);
 
 const STAGE_NOTES: Record<string, string> = {
   pre_seed: "Idea to first product. Cheques from $50k.",
@@ -31,10 +36,10 @@ const STAGE_NOTES: Record<string, string> = {
 const HEAD_DOTS: Record<string, number> = { solo: 1, "2_5": 3, "6_10": 5, "11_25": 7, "26_50": 9, "50_plus": 11 };
 const REV_BAR: Record<string, number> = { pre_revenue: 0, "0_10k": 10, "11_20k": 20, "21_30k": 30, "31_50k": 46, "51_100k": 72, "100k_plus": 100 };
 
-function Question({ n, title, lead, children }: { n: number; title: string; lead?: string; children: React.ReactNode }) {
+function Question({ n, title, lead, kicker, children }: { n: number; title: string; lead?: string; kicker?: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[13px] text-label">Question {n}</p>
+      <p className="text-[13px] text-label">{kicker ?? `Question ${n}`}</p>
       <h1 className="mt-2 text-[clamp(26px,3vw,34px)] leading-[1.1] tracking-[-0.04em]">{title}</h1>
       {lead && <p className="mt-2 text-[15px] leading-relaxed text-muted">{lead}</p>}
       <div className="mt-8">{children}</div>
@@ -55,6 +60,7 @@ export default function OnboardingPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [deckInputs, setDeckInputs] = useState<DeckInputs>({});
 
   const [draft, setDraft] = useState<Draft>({
     firstName: "",
@@ -72,6 +78,7 @@ export default function OnboardingPage() {
     revenue: null,
     deckName: null,
     wantsDeck: false,
+    deckAnswers: 0,
   });
   const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
@@ -103,12 +110,15 @@ export default function OnboardingPage() {
         revenue: startup?.revenue_band ?? null,
         deckName: startup?.deck_filename ?? null,
         wantsDeck: startup?.wants_generated_deck ?? false,
+        deckAnswers: answeredCount(startup?.deck_inputs),
       };
       patch(d);
+      setDeckInputs(startup?.deck_inputs ?? {});
       setNeedsScrape(!startup?.scrape || Boolean(startup.scrape.error));
 
       const firstGap: Step = !d.firstName ? "name" : !d.domain ? "domain" : !d.headcount ? "team" : !d.valuesDone ? "values" : !d.stage ? "stage" : !d.revenue ? "revenue" : !(d.deckName || d.wantsDeck) ? "deck" : "build";
-      const resume = saved && STEPS.includes(saved as Step) && STEPS.indexOf(saved as Step) <= STEPS.indexOf(firstGap) ? (saved as Step) : firstGap;
+      let resume = saved && STEPS.includes(saved as Step) && STEPS.indexOf(saved as Step) <= STEPS.indexOf(firstGap) ? (saved as Step) : firstGap;
+      if (resume === "deck_answers" && !d.wantsDeck) resume = "deck";
       setStep(resume === "build" ? "deck" : resume);
       setLoading(false);
     })();
@@ -206,9 +216,19 @@ export default function OnboardingPage() {
             patch({ deckName: deckFile.name, wantsDeck: false });
           } else if (draft.wantsDeck) {
             await updateStartup({ wants_generated_deck: true });
+            setStep("deck_answers");
+            break;
           } else if (!draft.deckName) {
             throw new Error("Upload your deck or ask us to make one");
           }
+          if (scrapeRef.current) await scrapeRef.current;
+          setStep("build");
+          break;
+        }
+        case "deck_answers": {
+          const clean = cleanDeckInputs(deckInputs);
+          await updateStartup({ deck_inputs: clean });
+          patch({ deckAnswers: answeredCount(clean) });
           if (scrapeRef.current) await scrapeRef.current;
           setStep("build");
           break;
@@ -242,7 +262,8 @@ export default function OnboardingPage() {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
-      if (e.key === "Enter" && !e.shiftKey && step !== "build" && !busy) {
+      const multiline = target.tagName === "TEXTAREA" && !(e.metaKey || e.ctrlKey);
+      if (e.key === "Enter" && !e.shiftKey && !multiline && step !== "build" && !busy) {
         e.preventDefault();
         void next();
         return;
@@ -266,7 +287,8 @@ export default function OnboardingPage() {
   });
 
   const idx = STEPS.indexOf(step);
-  const progress = step === "build" ? 1 : idx / (STEPS.length - 1);
+  const shown = COUNTED.indexOf(SUB_STEPS[step] ?? step);
+  const progress = step === "build" ? 1 : step === "deck_answers" ? (shown + 0.5) / COUNTED.length : shown / COUNTED.length;
 
   if (loading) {
     return (
@@ -283,7 +305,7 @@ export default function OnboardingPage() {
           <Logo href="/" />
           <div className="flex flex-1 items-center justify-end gap-4 md:justify-center">
             <span className="tabular hidden text-[12.5px] text-label sm:inline">
-              {step === "build" ? "Last step" : `Step ${idx + 1} of ${STEPS.length - 1}`}
+              {step === "build" ? "Last step" : `Step ${shown + 1} of ${COUNTED.length}`}
             </span>
             <svg viewBox="0 0 200 10" className="h-2.5 w-[140px] overflow-visible md:w-[220px]" preserveAspectRatio="none" aria-hidden>
               <path d="M2 5 C 50 4, 150 6, 198 5" stroke="#e6ddd0" strokeWidth={2} fill="none" strokeLinecap="round" />
@@ -316,7 +338,7 @@ export default function OnboardingPage() {
       <main className={cn("flex-1", step === "build" ? "graph-paper" : "")}>
         {step === "build" ? (
           <div className="flex min-h-[calc(100dvh-61px)] items-center justify-center px-5 py-16">
-            <Building domain={draft.domain} needsScrape={needsScrape} />
+            <Building domain={draft.domain} needsScrape={needsScrape} wantsDeck={draft.wantsDeck && !draft.deckName} />
           </div>
         ) : (
           <div className="mx-auto grid max-w-[1280px] lg:grid-cols-[1fr_1fr]">
@@ -515,6 +537,24 @@ export default function OnboardingPage() {
                         </Tile>
                       </Question>
                     )}
+
+                    {step === "deck_answers" && (
+                      <Question
+                        n={7}
+                        kicker="Question 7, continued"
+                        title="Five things investors ask first"
+                        lead="All optional, but every answer makes the deck sharper. We only use what you write here and on your site."
+                      >
+                        <DeckAnswers
+                          value={deckInputs}
+                          onChange={(v) => {
+                            setDeckInputs(v);
+                            patch({ deckAnswers: answeredCount(v) });
+                          }}
+                          autoFocus
+                        />
+                      </Question>
+                    )}
                   </motion.div>
                 </AnimatePresence>
 
@@ -527,9 +567,9 @@ export default function OnboardingPage() {
                       </Button>
                     )}
                     <Button variant="primary" size="lg" onClick={() => void next()} disabled={busy} className="min-w-[160px]">
-                      {busy ? "Saving" : step === "deck" ? "Build my profile" : "Continue"}
+                      {busy ? "Saving" : (step === "deck" && !(draft.wantsDeck && !deckFile)) || step === "deck_answers" ? "Build my profile" : "Continue"}
                     </Button>
-                    <span className="hidden text-[12.5px] text-faint sm:inline">
+                    <span className={cn("hidden text-[12.5px] text-faint", step !== "deck_answers" && "sm:inline")}>
                       or press <kbd className="rounded-[4px] border border-line bg-panel px-1.5 py-0.5 text-[11px] text-label">Enter</kbd>
                     </span>
                   </div>

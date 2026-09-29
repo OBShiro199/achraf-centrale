@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, Check, Copy, CreditCard, House, Inbox as InboxIcon, LogOut, Menu, Settings, Users } from "lucide-react";
+import { Building2, Check, Copy, CreditCard, FileText, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/landing/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { brandConfetti } from "@/components/ui/kit";
@@ -18,6 +18,8 @@ const NAV = [
   { href: "/dashboard", label: "Home", icon: House },
   { href: "/dashboard/investors", label: "Investors", icon: Users },
   { href: "/dashboard/inbox", label: "Inbox", icon: InboxIcon },
+  { href: "/dashboard/outbox", label: "Outbox", icon: Send },
+  { href: "/dashboard/deck", label: "Pitch deck", icon: FileText },
   { href: "/dashboard/profile", label: "Startup profile", icon: Building2 },
 ];
 const NAV_2 = [
@@ -29,6 +31,8 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Home",
   "/dashboard/investors": "Investors",
   "/dashboard/inbox": "Inbox",
+  "/dashboard/outbox": "Outbox",
+  "/dashboard/deck": "Pitch deck",
   "/dashboard/profile": "Startup profile",
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",

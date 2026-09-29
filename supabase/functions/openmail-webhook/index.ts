@@ -77,6 +77,17 @@ serve(async (req) => {
     { onConflict: "openmail_message_id", ignoreDuplicates: true },
   );
 
+  // A reply stops any follow-up still waiting to go to this investor.
+  if (investorId) {
+    await admin
+      .from("scheduled_emails")
+      .update({ status: "cancelled", last_error: "Investor replied" })
+      .eq("owner_id", inbox.owner_id)
+      .eq("investor_id", investorId)
+      .eq("kind", "follow_up")
+      .eq("status", "queued");
+  }
+
   // Heads-up email to the founder, only for investor replies.
   if (investorId) {
     try {

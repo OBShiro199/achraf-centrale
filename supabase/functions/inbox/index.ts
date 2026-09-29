@@ -125,6 +125,7 @@ serve(async (req) => {
         investor_id: link?.investor_id ?? null,
         inbox_id: inbox.id,
         direction: "outbound",
+        kind: "reply",
         openmail_message_id: result.messageId,
         openmail_thread_id: result.threadId,
         from_addr: inbox.address,

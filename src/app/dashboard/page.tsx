@@ -11,7 +11,8 @@ import { ScribbleTick, ScribbleUnderline } from "@/components/sketch/draw";
 import { RoughStrokes, type Stroke } from "@/components/sketch/rough";
 import { BrandMark } from "@/components/landing/logo";
 import { callFunction } from "@/lib/supabase/client";
-import { useInvestors, useStats, type InvestorRow } from "@/lib/data";
+import { useStats, useTopMatches } from "@/lib/data";
+import { reasonLabel, type DirectoryRow } from "@/lib/directory";
 import { label, STAGES } from "@/lib/taxonomy";
 import type { ThreadSummary } from "@/lib/types";
 import { cn, timeAgo } from "@/lib/utils";
@@ -84,9 +85,9 @@ export default function HomePage() {
   const { profile, startup, signedUpAt, inbox, initialStats } = useApp();
   const { stats: liveStats, messages, reload } = useStats();
   const stats = liveStats ?? initialStats;
-  const { rows, reload: reloadInvestors } = useInvestors();
+  const { rows: top, reload: reloadInvestors } = useTopMatches(5);
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
-  const [composeFor, setComposeFor] = useState<InvestorRow | null>(null);
+  const [composeFor, setComposeFor] = useState<DirectoryRow | null>(null);
 
   useEffect(() => {
     callFunction<{ threads: ThreadSummary[] }>("inbox", { action: "threads" })
@@ -118,7 +119,6 @@ export default function HomePage() {
     return Math.max(1, Math.round((new Date(first.sent_at).getTime() - new Date(signedUpAt).getTime()) / 60000));
   }, [messages, signedUpAt]);
 
-  const top = useMemo(() => (rows ?? []).slice().sort((a, b) => b.score - a.score).slice(0, 5), [rows]);
   const loading = !stats;
   const saved = stats?.investors_saved ?? 0;
 
@@ -244,14 +244,14 @@ export default function HomePage() {
             <Card>
               <CardHeader
                 title="Best-fit investors"
-                sub="Scored on sector, stage, values and revenue"
+                sub="Claude's shortlist first, then the highest fit scores"
                 action={
                   <ButtonLink href="/dashboard/investors" size="sm" variant="ghost">
                     All investors <ArrowRight className="h-3.5 w-3.5" />
                   </ButtonLink>
                 }
               />
-              {!rows ? (
+              {!top ? (
                 <ul aria-hidden>
                   {Array.from({ length: 5 }, (_, i) => (
                     <li key={i} className="flex items-center gap-3 border-b border-line-2 px-5 py-3 last:border-b-0">
@@ -281,7 +281,7 @@ export default function HomePage() {
                         <p className="truncate text-[13.5px] font-medium text-ink">{r.full_name}</p>
                         <p className="truncate text-[12px] text-label">
                           {r.firm}
-                          {r.reasons.length ? `, ${r.reasons.slice(0, 2).join(", ").toLowerCase()}` : ""}
+                          {r.pick_why ? `, ${r.pick_why}` : r.reasons.length ? `, ${r.reasons.slice(0, 2).map(reasonLabel).join(", ").toLowerCase()}` : ""}
                         </p>
                       </div>
                       <div className="hidden w-28 items-center gap-2 sm:flex">

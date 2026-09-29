@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Download, FileText, RefreshCw, Upload } from "lucide-react";
+import { ArrowRight, Download, FileText, RefreshCw, Upload } from "lucide-react";
 import { useApp } from "@/components/app/context";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Card, CardHeader, Pill, Settle } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
@@ -259,7 +259,31 @@ export default function ProfilePage() {
 
         <Settle delay={240}>
           <Card>
-            <CardHeader title="Pitch deck" sub="PDF, PPTX, PPT, KEY or DOCX, up to 50 MB" />
+            <CardHeader
+              title="Pitch deck"
+              sub="PDF, PPTX, PPT, KEY or DOCX, up to 50 MB"
+              action={
+                <ButtonLink href="/dashboard/deck" size="sm" variant="ghost" className="-mr-2 -mt-1">
+                  Open pitch deck <ArrowRight className="h-3.5 w-3.5" />
+                </ButtonLink>
+              }
+            />
+            {startup.deck_slides && (
+              <div className="flex flex-wrap items-center gap-4 border-b border-line-2 p-5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-[8px] border border-line bg-panel-2">
+                  <BrandMark className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-medium text-ink">Drafted deck, {startup.deck_slides.slides.length} slides</p>
+                  <p className="text-[12.5px] text-label">
+                    Written by Claude from your website and answers{startup.generated_deck_at ? `, ${timeAgo(startup.generated_deck_at)}` : ""}
+                  </p>
+                </div>
+                <ButtonLink href="/dashboard/deck" size="sm">
+                  View deck
+                </ButtonLink>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-4 p-5">
               <input ref={fileRef} type="file" accept={DECK_EXTENSIONS.join(",")} className="hidden" onChange={(e) => void uploadDeck(e.target.files?.[0])} />
               {startup.deck_path ? (
@@ -277,16 +301,22 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-medium text-ink">{form.wants_generated_deck ? "We will draft a deck for you" : "No deck yet"}</p>
+                  <p className="text-[14px] font-medium text-ink">
+                    {startup.deck_slides ? "No uploaded deck" : form.wants_generated_deck ? "We will draft a deck for you" : "No deck yet"}
+                  </p>
                   <p className="text-[12.5px] text-label">
-                    {form.wants_generated_deck ? "Built from your website and answers. You can still upload your own." : "Upload one, or ask us to draft it."}
+                    {startup.deck_slides
+                      ? "Your drafted deck is above. Upload your own here if you have one."
+                      : form.wants_generated_deck
+                        ? "Built from your website and answers on the pitch deck page. You can still upload your own."
+                        : "Upload one, or ask us to draft it."}
                   </p>
                 </div>
               )}
               <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 <Upload className="h-3.5 w-3.5" /> {uploading ? "Uploading" : startup.deck_path ? "Replace" : "Upload"}
               </Button>
-              {!startup.deck_path && (
+              {!startup.deck_path && !startup.deck_slides && (
                 <label className="flex items-center gap-2 text-[13px] text-muted">
                   <input type="checkbox" checked={form.wants_generated_deck} onChange={(e) => set("wants_generated_deck", e.target.checked)} className="accent-[#391c25]" />
                   Draft one for me

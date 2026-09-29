@@ -38,6 +38,79 @@ export interface Startup {
   analysis_error: string | null;
   analysed_at: string | null;
   onboarding_completed_at: string | null;
+  auto_follow_up: boolean;
+  follow_up_days: number;
+  /** Answers to the five deck questions, keyed by DECK_QUESTIONS keys. */
+  deck_inputs: Partial<Record<DeckQuestionKey, string>> | null;
+  deck_slides: Deck | null;
+  generated_deck_path: string | null;
+  generated_deck_at: string | null;
+  deck_status: "idle" | "running" | "done" | "error";
+  deck_error: string | null;
+  /** Investor-side keywords picked by Claude from the directory's own vocabulary. */
+  match_keywords: string[];
+  matches_status: "idle" | "running" | "done" | "error";
+  matched_at: string | null;
+}
+
+export type DeckQuestionKey = "revenue_history" | "traction" | "raise" | "team" | "competition";
+
+export const DECK_SLIDE_TYPES = [
+  "cover",
+  "problem",
+  "solution",
+  "how_it_works",
+  "why_now",
+  "traction",
+  "business_model",
+  "competition",
+  "team",
+  "use_of_funds",
+  "ask",
+] as const;
+
+export interface DeckChart {
+  kind: "bar" | "line" | "none";
+  title: string;
+  unit: string;
+  labels: string[];
+  values: number[];
+}
+
+export interface DeckSlide {
+  type: (typeof DECK_SLIDE_TYPES)[number];
+  kicker: string;
+  headline: string;
+  body: string;
+  bullets: string[];
+  stat_value: string;
+  stat_label: string;
+  chart: DeckChart;
+  rows: { label: string; detail: string }[];
+}
+
+export interface Deck {
+  company: string;
+  tagline: string;
+  slides: DeckSlide[];
+}
+
+export interface ScheduledEmail {
+  id: string;
+  owner_id: string;
+  investor_id: string;
+  kind: "first" | "follow_up";
+  parent_message_id: string | null;
+  thread_id: string | null;
+  subject: string;
+  body: string;
+  status: "queued" | "sending" | "sent" | "cancelled" | "failed";
+  send_after: string;
+  attempts: number;
+  last_error: string | null;
+  outreach_message_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Inbox {
@@ -82,6 +155,7 @@ export interface OutreachMessage {
   id: string;
   investor_id: string | null;
   direction: "outbound" | "inbound";
+  kind: "first" | "reply" | "follow_up";
   openmail_thread_id: string | null;
   from_addr: string | null;
   to_addr: string | null;

@@ -18,7 +18,7 @@ export function ComposeModal({
   onSent,
   firstEmail,
 }: {
-  investor: Investor | null;
+  investor: Pick<Investor, "id" | "full_name" | "email"> | null;
   onClose: () => void;
   onSent?: (investorId: string) => void;
   firstEmail?: boolean;

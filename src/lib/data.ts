@@ -2,62 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { DashboardStats, Investor, Match, OutreachMessage } from "@/lib/types";
+import type { DirectoryRow } from "@/lib/directory";
+import type { DashboardStats, OutreachMessage } from "@/lib/types";
 
-export interface InvestorRow extends Investor {
-  score: number;
-  reasons: string[];
-  saved: boolean;
-  contacted: boolean;
-  replied: boolean;
-  opened: boolean;
-}
-
-/** Investors joined with the founder's fit scores, saves and outreach status. */
-export function useInvestors() {
-  const [rows, setRows] = useState<InvestorRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
+/** The founder's best investors for Home: Claude's shortlist first, then the highest fit scores, one per firm. */
+export function useTopMatches(limit = 5) {
+  const [rows, setRows] = useState<DirectoryRow[] | null>(null);
   const load = useCallback(async () => {
-    const supabase = createClient();
-    const [inv, matches, saved, outreach] = await Promise.all([
-      supabase.from("investors").select("*").order("full_name"),
-      supabase.rpc("match_investors"),
-      supabase.from("saved_investors").select("investor_id"),
-      supabase.from("outreach_messages").select("investor_id,direction,opened_at"),
-    ]);
-    if (inv.error) return setError(inv.error.message);
-    const m = new Map(((matches.data ?? []) as Match[]).map((x) => [x.investor_id, x]));
-    const s = new Set((saved.data ?? []).map((x) => x.investor_id));
-    const out = (outreach.data ?? []) as Pick<OutreachMessage, "investor_id" | "direction" | "opened_at">[];
-    setRows(
-      (inv.data as Investor[]).map((i) => ({
-        ...i,
-        score: m.get(i.id)?.score ?? 0,
-        reasons: m.get(i.id)?.reasons ?? [],
-        saved: s.has(i.id),
-        contacted: out.some((o) => o.investor_id === i.id && o.direction === "outbound"),
-        replied: out.some((o) => o.investor_id === i.id && o.direction === "inbound"),
-        opened: out.some((o) => o.investor_id === i.id && o.direction === "outbound" && o.opened_at),
-      })),
-    );
-  }, []);
-
+    const { data } = await createClient().rpc("search_investors", {
+      p_filters: { one_per_firm: true },
+      p_sort: "picks",
+      p_dir: "asc",
+      p_limit: limit,
+      p_offset: 0,
+    });
+    setRows(((data as { rows?: DirectoryRow[] } | null)?.rows ?? []) as DirectoryRow[]);
+  }, [limit]);
   useEffect(() => {
     void load();
   }, [load]);
-
-  const toggleSave = useCallback(async (id: string, saved: boolean) => {
-    const supabase = createClient();
-    setRows((r) => r?.map((x) => (x.id === id ? { ...x, saved: !saved } : x)) ?? null);
-    const { data } = await supabase.auth.getUser();
-    const res = saved
-      ? await supabase.from("saved_investors").delete().eq("investor_id", id)
-      : await supabase.from("saved_investors").insert({ investor_id: id, owner_id: data.user!.id });
-    if (res.error) setRows((r) => r?.map((x) => (x.id === id ? { ...x, saved } : x)) ?? null);
-  }, []);
-
-  return { rows, error, reload: load, toggleSave, setRows };
+  return { rows, reload: load };
 }
 
 export function useStats() {
@@ -76,11 +40,4 @@ export function useStats() {
     void load();
   }, [load]);
   return { stats, messages, reload: load };
-}
-
-export function regionOf(location: string | null) {
-  if (!location) return "Other";
-  if (/UK$/.test(location)) return "UK";
-  if (/US$/.test(location)) return "US";
-  return "Europe";
 }

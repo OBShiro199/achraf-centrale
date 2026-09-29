@@ -72,7 +72,7 @@ async function planFollowUps(dryRun: boolean) {
     planned.push({ investor: investor.full_name, send_after: sendAfter, body });
     if (dryRun) continue;
 
-    await admin.from("scheduled_emails").upsert(
+    const { error: saveError } = await admin.from("scheduled_emails").upsert(
       {
         owner_id: c.owner_id,
         investor_id: c.investor_id,
@@ -85,6 +85,8 @@ async function planFollowUps(dryRun: boolean) {
       },
       { onConflict: "parent_message_id", ignoreDuplicates: true },
     );
+    // A failed save would re-draft the same follow-up every minute, so stop the run instead.
+    if (saveError) throw saveError;
   }
   return planned;
 }

@@ -59,9 +59,9 @@ function Reach({ r }: { r: DirectoryRow }) {
   );
   return (
     <div className="flex items-center gap-1">
-      {dot(true, <Mail className="h-3.5 w-3.5" />, r.email)}
-      {dot(Boolean(r.phone), <Phone className="h-3.5 w-3.5" />, r.mobile ? "Mobile number" : r.direct_phone ? "Direct line" : "No phone")}
-      {dot(Boolean(r.linkedin_url), <LinkedInMark className="h-3.5 w-3.5" />, r.linkedin_url ? "LinkedIn" : "No LinkedIn")}
+      {dot(true, <Mail className="h-3.5 w-3.5" />, r.unlocked ? r.email : "Email on file")}
+      {dot(r.has_phone, <Phone className="h-3.5 w-3.5" />, r.has_mobile ? "Mobile number on file" : r.has_direct ? "Direct line on file" : "No phone")}
+      {dot(r.has_linkedin, <LinkedInMark className="h-3.5 w-3.5" />, r.has_linkedin ? "LinkedIn on file" : "No LinkedIn")}
     </div>
   );
 }

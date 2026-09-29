@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Check, Copy, Globe, Mail, MapPin, MessageCircle, Phone, PhoneOff, Plus, Sparkles, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Building2, Check, Copy, Eye, Globe, Lock, Mail, MapPin, MessageCircle, Phone, PhoneOff, Plus, Sparkles, Star } from "lucide-react";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Avatar, Pill, Skeleton } from "@/components/ui/kit";
 import { createClient } from "@/lib/supabase/client";
-import { formatFunding, reasonLabel, type DirectoryRow } from "@/lib/directory";
+import { formatFunding, isUpgradeError, reasonLabel, revealInvestor, toLimitError, type Contact, type DirectoryRow } from "@/lib/directory";
 import { INVESTOR_TYPES, label, ROLES, SECTORS, STAGES, VALUES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 import { LinkedInMark, XMark } from "./brand-icons";
@@ -21,6 +21,8 @@ interface Detail {
   firm_address: string | null;
   portfolio: string[];
   focus_note: string | null;
+  unlocked: boolean;
+  contact: Contact | null;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -63,6 +65,8 @@ export function InvestorDrawerBody({
   onKeyword,
   selected,
   onSelect,
+  onRevealed,
+  revealsLeft,
 }: {
   row: DirectoryRow;
   onEmail: () => void;
@@ -70,8 +74,13 @@ export function InvestorDrawerBody({
   onKeyword: (k: string) => void;
   selected: boolean;
   onSelect: () => void;
+  onRevealed: (c: Contact) => void;
+  revealsLeft: number | null;
 }) {
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState<Error | null>(null);
   const [allKeywords, setAllKeywords] = useState(false);
   const [moreAbout, setMoreAbout] = useState(false);
 
@@ -80,24 +89,46 @@ export function InvestorDrawerBody({
     setDetail(null);
     setAllKeywords(false);
     setMoreAbout(false);
+    setDetailError(null);
+    setRevealError(null);
     void createClient()
-      .from("investors")
-      .select("headline, keywords, thesis, firm_description, firm_linkedin, firm_twitter, firm_phone, firm_address, portfolio, focus_note")
-      .eq("id", row.id)
-      .single<Detail>()
-      .then(({ data }) => live && setDetail(data));
+      .rpc("investor_detail", { p_id: row.id })
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) setDetailError(toLimitError(error).message);
+        else setDetail(data as Detail);
+      });
     return () => {
       live = false;
     };
   }, [row.id]);
 
   const about = detail?.firm_description ?? detail?.thesis ?? null;
+  const open = row.unlocked || Boolean(detail?.unlocked);
+  const c: Contact | null = detail?.contact ?? (row.unlocked ? row : null);
+
+  async function reveal() {
+    setRevealing(true);
+    setRevealError(null);
+    try {
+      const contact = await revealInvestor(row.id);
+      setDetail((d) => (d ? { ...d, unlocked: true, contact } : d));
+      onRevealed(contact);
+    } catch (err) {
+      setRevealError(err instanceof Error ? err : new Error("Could not reveal"));
+    } finally {
+      setRevealing(false);
+    }
+  }
   const keywords = detail?.keywords ?? [];
   const phones: { label: string; value: string; mobile?: boolean }[] = [
-    ...(row.mobile ? [{ label: "Mobile", value: row.mobile, mobile: true }] : []),
-    ...(row.direct_phone ? [{ label: "Direct line", value: row.direct_phone }] : []),
+    ...(c?.mobile ? [{ label: "Mobile", value: c.mobile, mobile: true }] : []),
+    ...(c?.direct_phone ? [{ label: "Direct line", value: c.direct_phone }] : []),
     ...(detail?.firm_phone ? [{ label: "Firm", value: detail.firm_phone }] : []),
   ];
+  const hidden = [row.has_mobile && "mobile", row.has_direct && "direct line", row.has_linkedin && "LinkedIn", row.has_twitter && "X"].filter(
+    Boolean,
+  ) as string[];
 
   return (
     <div className="pb-10">
@@ -161,6 +192,8 @@ export function InvestorDrawerBody({
               <Skeleton className="h-3 w-[92%]" />
               <Skeleton className="h-3 w-[70%]" />
             </div>
+          ) : detailError ? (
+            <p className="mt-1.5 text-[13.5px] text-pencil">{detailError}</p>
           ) : about ? (
             <>
               <p className={cn("mt-1.5 whitespace-pre-line border-l-2 border-vermilion/60 pl-3 text-[14px] leading-relaxed text-body", !moreAbout && "line-clamp-5")}>{about}</p>
@@ -264,13 +297,42 @@ export function InvestorDrawerBody({
           <div className="divide-y divide-line-2 text-[13.5px]">
             <div className="flex items-center gap-2.5 px-4 py-2.5">
               <Mail className="h-4 w-4 shrink-0 text-label" />
-              <a href={`mailto:${row.email}`} className="min-w-0 truncate hover:text-vermilion">
-                {row.email}
-              </a>
-              <span className="ml-auto">
-                <CopyButton text={row.email} />
-              </span>
+              {open && c ? (
+                <>
+                  <a href={`mailto:${c.email}`} className="min-w-0 truncate hover:text-vermilion">
+                    {c.email}
+                  </a>
+                  <span className="ml-auto">
+                    <CopyButton text={c.email} />
+                  </span>
+                </>
+              ) : (
+                <span className="min-w-0 truncate text-muted">{row.email}</span>
+              )}
             </div>
+            {!open && (
+              <div className="bg-panel-2 px-4 py-3">
+                <p className="flex items-center gap-1.5 text-[12.5px] text-muted">
+                  <Lock className="h-3.5 w-3.5" /> Email{hidden.length ? `, ${hidden.join(", ")}` : ""} hidden
+                </p>
+                <p className="mt-1 text-[12px] text-label">You can email them from Centrale without revealing anything. Revealing uses one credit.</p>
+                {revealError ? (
+                  <div className="mt-2">
+                    <p className="text-[12.5px] text-pencil">{revealError.message}</p>
+                    {isUpgradeError(revealError) && (
+                      <ButtonLink href="/dashboard/billing" size="sm" variant="primary" className="mt-2">
+                        See plans
+                      </ButtonLink>
+                    )}
+                  </div>
+                ) : (
+                  <Button size="sm" className="mt-2" onClick={() => void reveal()} disabled={revealing}>
+                    <Eye className="h-3.5 w-3.5" /> {revealing ? "Revealing" : "Reveal contact details"}
+                    {revealsLeft != null && <span className="text-label">, {revealsLeft} left</span>}
+                  </Button>
+                )}
+              </div>
+            )}
             {phones.map((p) => (
               <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5">
                 <Phone className="h-4 w-4 shrink-0 text-label" />
@@ -299,14 +361,14 @@ export function InvestorDrawerBody({
                 A mobile number for this person is on a do-not-call list, so it is hidden.
               </div>
             )}
-            {row.linkedin_url && (
-              <a href={row.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+            {c?.linkedin_url && (
+              <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
                 <LinkedInMark className="h-4 w-4 shrink-0 text-label" /> LinkedIn profile
               </a>
             )}
-            {row.twitter_url && (
-              <a href={row.twitter_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
-                <XMark className="h-4 w-4 shrink-0 text-label" /> {row.twitter_url.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, "@").replace(/^@@/, "@")}
+            {c?.twitter_url && (
+              <a href={c.twitter_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+                <XMark className="h-4 w-4 shrink-0 text-label" /> {c.twitter_url.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, "@").replace(/^@@/, "@")}
               </a>
             )}
             {row.website_url && (

@@ -527,7 +527,7 @@ export default function OutboxPage() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-5 py-3">
           <span className="text-[12px] text-label">
-            {editingLive?.status === "queued" ? `Sends ${sendsIn(editingLive.send_after, now)}` : editing?.investor?.email}
+            {editingLive?.status === "queued" ? `Sends ${sendsIn(editingLive.send_after, now)}` : editing?.investor?.firm}
           </span>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={closeEdit}>

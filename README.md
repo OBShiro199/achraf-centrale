@@ -27,8 +27,8 @@ npm run dev
 ## How the pieces fit
 
 1. **Signup** calls the `signup` function, which creates a pre-confirmed user (Supabase's default mailer only delivers to team members, so email confirmation is skipped for now). A trigger creates the `profiles` and `startups` rows.
-2. **Onboarding** (`/onboarding`) saves each answer as it goes and starts the Firecrawl scrape the moment the domain is entered. The last step runs `build-profile` (Claude) and `provision-inbox` (OpenMail) in parallel, then scores investors with the `match_investors()` SQL function.
-3. **Dashboard** (`/dashboard`): Home, Investors, Inbox, Startup profile, Settings, Billing. Sending goes through `send-email`, which adds an open-tracking pixel served by `track-open`.
+2. **Onboarding** (`/onboarding`) saves each answer as it goes and starts the Firecrawl scrape the moment the domain is entered. Founders who want a deck answer five questions. The last step runs `build-profile` (Claude) and `provision-inbox` (OpenMail) in parallel, then `match-investors` and, when asked for, `generate-deck`. Every account starts a 7-day free trial.
+3. **Dashboard** (`/dashboard`): Home, Investors, Inbox, Outbox, Pitch deck, Startup profile, Settings, Billing. Single sends go through `send-email`; batches and follow-ups are queued in `scheduled_emails` and sent by `process-outbox` every minute. Every email carries an open-tracking pixel served by `track-open`.
 4. **Replies** hit `openmail-webhook`, which verifies the HMAC signature with the inbox's secret, dedupes by event id, links the reply to the investor by thread, emails the founder from the system inbox, and the insert fans out to the browser over Realtime (toast plus confetti).
 
 ### Edge functions
@@ -44,10 +44,17 @@ npm run dev
 | `inbox` | on | List threads, read a thread, reply, mark read (proxied to OpenMail) |
 | `openmail-webhook` | off (HMAC) | Inbound mail and inbox suspension events |
 | `track-open` | off | 1x1 pixel, records opens |
+| `match-investors` | on | Claude picks match keywords from the directory vocabulary, SQL scores everyone, Claude shortlists 25 with reasons |
+| `generate-deck` | on | Claude writes an 11-slide deck from the site and five answers, rendered to PDF with hand-drawn charts |
+| `process-outbox` | off (cron secret) | Plans follow-ups and sends due Outbox emails within OpenMail's limits |
+| `billing` | on | Stripe Checkout and customer portal sessions |
+| `stripe-webhook` | off (Stripe signature) | Keeps `subscriptions` in step with Stripe |
 
 ### Secrets
 
-The Supabase CLI on this machine is logged into a different account, so function secrets live in **Supabase Vault** and are read through `public.get_app_secret()` (service role only): `OPENMAIL_API_KEY`, `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `OPENMAIL_SYSTEM_INBOX_ID`. If you later run `supabase secrets set`, env vars take precedence over Vault automatically (`_shared/core.ts`).
+The Supabase CLI on this machine is logged into a different account, so function secrets live in **Supabase Vault** and are read through `public.get_app_secret()` (service role only): `OPENMAIL_API_KEY`, `FIRECRAWL_API_KEY`, `ANTHROPIC_API_KEY`, `OPENMAIL_SYSTEM_INBOX_ID`, `APP_URL`, `CRON_SECRET`, and once Stripe is connected `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
+
+**Test mode.** Until the Vault secret `OUTREACH_LIVE` is `true`, every email meant for a directory investor (or an old demo investor) goes to `oliverburt3+centraletest@gmail.com` with a note naming the real recipient. Override the address with `OUTREACH_TEST_RECIPIENT`. If you later run `supabase secrets set`, env vars take precedence over Vault automatically (`_shared/core.ts`).
 
 ### Deploying functions
 
@@ -61,15 +68,20 @@ supabase functions deploy
 
 ### Database
 
-Migrations are in `supabase/migrations`, dummy investors in `supabase/seed.sql`. All ten investor emails route to `oliverburt3+N@gmail.com` and phone numbers use reserved fictional ranges.
+Migrations are in `supabase/migrations`.
+
+**Investor directory.** The raw import lives in `public.contacts` (never readable from the API). A cron job (`sync-investors`, every minute, 2,000 rows per run) syncs it into `public.investors`: one row per email, only people with both an email and a LinkedIn profile, with type, stages, sectors, values, role, region and phones derived from the data. Numbers labelled DNC are never shown. A slim `private.investor_index` (integer keyword ids) keeps search fast as the directory grows.
+
+**Access and limits.** Founders never read contact details from a table. `search_investors`, `investor_facets`, `investor_detail`, `reveal_investor` and `export_investors` are metered security definer functions: contact details are masked until revealed (one credit), exports spend export credits, and plans cap search depth, page size, searches per minute and rows viewed per day. Plans live in `public.plans` (trial, Starter, Pro).
 
 ## Known limits
 
 - **OpenMail free plan: 3 inboxes per account.** The fourth signup gets a clear "inbox limit" message and a *Set up inbox* button in the top bar and Settings once the limit is raised. Cold sends are capped at 20 a day per new inbox and 30 a day per account.
 - Reply notification links use `APP_URL` from Vault (currently https://achraf-centrale.vercel.app).
 - PPTX, KEY and DOCX decks are stored but not read yet; PDFs are read by Claude.
-- "Make one for me" records the request; deck generation, follow-ups and Stripe checkout are next.
-- Matching is the weighted SQL score; thesis embeddings and the Claude conflict review from the brief are the next pass.
+- Search takes about 150 to 300ms on today's 13.5k investors on the smallest Supabase instance. At 200k expect it to scale roughly linearly; move to a larger compute size before importing.
+- Stripe runs in test mode once the keys are in Vault; see the Stripe guide for Achraf.
+- LinkedIn and WhatsApp outreach are researched in `docs/research/multichannel-outreach.md`, not built.
 
 ## Brand
 

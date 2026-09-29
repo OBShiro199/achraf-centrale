@@ -9,7 +9,7 @@ import { ChoiceMenu, FilterChip, FilterMenu, GroupedMenu, PanelMenu, Toggle, typ
 import { ExportMenu } from "@/components/app/export-menu";
 import { InvestorDrawerBody } from "@/components/app/investor-drawer";
 import { InvestorTable } from "@/components/app/investor-table";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { Card, Drawer, Empty, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
@@ -17,7 +17,7 @@ import { Hand } from "@/components/sketch/hand";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import {
   cleanFilters,
-  fetchAllMatching,
+  fetchMatching,
   FIRM_FUNDING,
   FIRM_SIZES,
   HAS,
@@ -27,7 +27,9 @@ import {
   saveDirectoryState,
   STATUS,
   toggleSaved,
+  isUpgradeError,
   useDirectory,
+  useEntitlements,
   useFacets,
   type ContactStatus,
   type DirectoryFilters,
@@ -253,8 +255,9 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
   const [matching, setMatching] = useState(false);
   const [selectingAll, setSelectingAll] = useState(false);
 
-  const { rows, total, loading, error, reload, patchRow } = useDirectory(filters, sort, dir, page, pageSize);
+  const { rows, total, limits, loading, error, reload, patchRow } = useDirectory(filters, sort, dir, page, pageSize);
   const { facets, reload: reloadFacets } = useFacets(filters);
+  const { ent, reload: reloadEnt } = useEntitlements();
 
   const set = useCallback((p: Partial<DirectoryFilters>) => {
     setFilters((f) => ({ ...f, ...p }));
@@ -304,9 +307,11 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
   async function selectAllMatching() {
     setSelectingAll(true);
     try {
-      const { rows: all } = await fetchAllMatching(filters, sort, dir);
-      setSelected(new Map(all.slice(0, BATCH_LIMIT).map((r) => [r.id, r])));
-      if (all.length > BATCH_LIMIT) toast({ title: `Selected the first ${BATCH_LIMIT}`, body: "Batches go out in groups of 50 so each email can be checked." });
+      const all = await fetchMatching(filters, sort, dir, BATCH_LIMIT);
+      setSelected(new Map(all.map((r) => [r.id, r])));
+      if ((total ?? 0) > BATCH_LIMIT) toast({ title: `Selected the first ${BATCH_LIMIT}`, body: "Batches go out in groups of 50 so each email can be checked." });
+    } catch (err) {
+      toast({ title: "Could not select", body: err instanceof Error ? err.message : undefined, tone: "error" });
     } finally {
       setSelectingAll(false);
     }
@@ -341,7 +346,10 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
   const anyFilter = hasFilters(filters);
   const from = total ? page * pageSize + 1 : 0;
   const to = Math.min((page + 1) * pageSize, total ?? 0);
-  const pages = total ? Math.ceil(total / pageSize) : 1;
+  // The plan caps how deep any search can go (the trial stops at 500 rows, page 10 of 50).
+  const reachable = limits?.max_rows != null ? Math.min(total ?? 0, limits.max_rows) : total ?? 0;
+  const pages = reachable ? Math.ceil(reachable / pageSize) : 1;
+  const capped = limits?.max_rows != null && (total ?? 0) > limits.max_rows;
   const selectedRows = useMemo(() => [...selected.values()], [selected]);
 
   return (
@@ -360,6 +368,14 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
             )}{" "}
             Fit is scored against your startup profile.
           </p>
+          {ent && (
+            <p className="mt-1 text-[12.5px] text-label">
+              {ent.plan_name}
+              {ent.status === "trialing" && ent.trial_days_left != null ? `, ${ent.trial_days_left} days left` : ""}
+              {ent.status === "expired" ? ", expired" : ""}: {ent.reveals_left.toLocaleString("en-GB")} of {ent.reveals_total.toLocaleString("en-GB")} reveals
+              and {ent.exports_left.toLocaleString("en-GB")} export credits left.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Hand className="hidden text-[20px] lg:block" tilt={-2}>
@@ -369,7 +385,18 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
             <Sparkles className={cn("h-3.5 w-3.5 text-vermilion", matching && "animate-pulse")} />
             {matching ? "Matching" : "Refresh Claude picks"}
           </Button>
-          <ExportMenu total={total} selected={selectedRows} fetchMatching={(p) => fetchAllMatching(filters, sort, dir, p).then((r) => r.rows)} />
+          <ExportMenu
+            total={total}
+            selected={selectedRows}
+            filters={filters}
+            sort={sort}
+            dir={dir}
+            ent={ent}
+            onDone={() => {
+              void reload();
+              void reloadEnt();
+            }}
+          />
         </div>
       </Settle>
 
@@ -469,7 +496,21 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
             onSelectPage={selectPage}
           />
           {error && (
-            <Empty title="Could not load investors" body={error} action={<Button size="sm" onClick={() => void reload()}>Try again</Button>} />
+            <Empty
+              title={isUpgradeError(error) ? "You have reached a plan limit" : error.code === "rate_limited" ? "Slow down a moment" : "Could not load investors"}
+              body={error.message}
+              action={
+                isUpgradeError(error) ? (
+                  <ButtonLink href="/dashboard/billing" size="sm" variant="primary">
+                    See plans
+                  </ButtonLink>
+                ) : (
+                  <Button size="sm" onClick={() => void reload()}>
+                    Try again
+                  </Button>
+                )
+              }
+            />
           )}
           {!error && !loading && rows?.length === 0 && (
             <Empty
@@ -482,6 +523,18 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-4 py-2.5 text-[12.5px] text-label">
               <span className="tabular">
                 {from.toLocaleString("en-GB")} to {to.toLocaleString("en-GB")} of {total.toLocaleString("en-GB")}
+                {capped && (
+                  <>
+                    {" "}
+                    <span className="text-faint">
+                      , your plan shows the first {limits!.max_rows!.toLocaleString("en-GB")}.{" "}
+                      <a href="/dashboard/billing" className="text-ink underline-offset-2 hover:underline">
+                        Upgrade
+                      </a>{" "}
+                      or narrow the filters.
+                    </span>
+                  </>
+                )}
               </span>
               <div className="flex items-center gap-2">
                 <Select
@@ -570,6 +623,12 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
             onSave={() => void onSave(open)}
             selected={selected.has(open.id)}
             onSelect={() => toggleSelect(open)}
+            revealsLeft={ent?.reveals_left ?? null}
+            onRevealed={(c) => {
+              patchRow(open.id, { ...c, unlocked: true });
+              setOpen({ ...open, ...c, unlocked: true });
+              void reloadEnt();
+            }}
             onKeyword={(k) => {
               set({ keywords: [...new Set([...(filters.keywords ?? []), k])] });
               setOpen(null);
@@ -611,10 +670,8 @@ export default function InvestorsPage() {
   useEffect(() => {
     setInitial({ ...DEFAULT_STATE, ...loadDirectoryState() });
     void createClient()
-      .from("investors")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true)
-      .then(({ count }) => setDirectorySize(count ?? null));
+      .rpc("directory_size")
+      .then(({ data }) => setDirectorySize((data as number | null) ?? null));
   }, []);
 
   if (!initial) {

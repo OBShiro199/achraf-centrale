@@ -14,6 +14,7 @@ export interface DirectoryRow {
   role: string;
   firm: string;
   firm_domain: string | null;
+  /** Masked (a•••@firm.com) until the founder reveals this investor. */
   email: string;
   phone: string | null;
   mobile: string | null;
@@ -34,6 +35,13 @@ export interface DirectoryRow {
   linkedin_url: string | null;
   twitter_url: string | null;
   website_url: string | null;
+  has_mobile: boolean;
+  has_direct: boolean;
+  has_phone: boolean;
+  has_linkedin: boolean;
+  has_twitter: boolean;
+  /** Contact details are visible: revealed, exported, or a test contact. */
+  unlocked: boolean;
   source: "demo" | "test" | "contacts";
   score: number;
   /** Codes such as "sector:fintech" or "keywords:payments,insurtech"; see reasonLabel. */
@@ -64,6 +72,8 @@ export interface DirectoryFilters {
   countries?: string[];
   cities?: string[];
   roles?: string[];
+  /** A hand-picked list, used to export a selection. */
+  ids?: string[];
   keywords?: string[];
   keyword_mode?: "any" | "all";
   exclude_keywords?: string[];
@@ -197,6 +207,31 @@ export const hasFilters = (f: DirectoryFilters) => {
   return Object.keys(c).length > 0;
 };
 
+export interface SearchLimits {
+  max_rows: number | null;
+  page_size: number;
+  plan: string;
+}
+
+/** Errors from the metered database functions arrive as "code: sentence". */
+export class LimitError extends Error {
+  constructor(
+    public code: "rate_limited" | "daily_limit" | "page_limit" | "no_reveals" | "export_locked" | "no_exports" | "not_signed_in" | "not_found" | "other",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export function toLimitError(error: { message: string }) {
+  const m = error.message.match(/^([a-z_]+): ([\s\S]*)$/);
+  if (!m) return new LimitError("other", error.message);
+  return new LimitError(m[1] as LimitError["code"], m[2]);
+}
+
+export const isUpgradeError = (e: unknown) =>
+  e instanceof LimitError && ["daily_limit", "page_limit", "no_reveals", "export_locked", "no_exports"].includes(e.code);
+
 async function search(filters: DirectoryFilters, sort: SortKey, dir: SortDir, limit: number, offset: number) {
   const { data, error } = await createClient().rpc("search_investors", {
     p_filters: cleanFilters(filters),
@@ -205,16 +240,17 @@ async function search(filters: DirectoryFilters, sort: SortKey, dir: SortDir, li
     p_limit: limit,
     p_offset: offset,
   });
-  if (error) throw new Error(error.message);
-  return data as { total: number; rows: DirectoryRow[] };
+  if (error) throw toLimitError(error);
+  return data as { total: number; rows: DirectoryRow[]; limits: SearchLimits };
 }
 
 /** A page of the directory. Stale responses are dropped, so fast filter changes never flash old rows. */
 export function useDirectory(filters: DirectoryFilters, sort: SortKey, dir: SortDir, page: number, pageSize: number) {
   const [rows, setRows] = useState<DirectoryRow[] | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  const [limits, setLimits] = useState<SearchLimits | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LimitError | null>(null);
   const seq = useRef(0);
   const key = JSON.stringify([cleanFilters(filters), sort, dir, page, pageSize]);
 
@@ -228,9 +264,10 @@ export function useDirectory(filters: DirectoryFilters, sort: SortKey, dir: Sort
       if (id !== seq.current) return;
       setRows(res.rows);
       setTotal(res.total);
+      setLimits(res.limits);
     } catch (err) {
       if (id !== seq.current) return;
-      setError(err instanceof Error ? err.message : "Could not load investors");
+      setError(err instanceof LimitError ? err : new LimitError("other", "Could not load investors"));
     } finally {
       if (id === seq.current) setLoading(false);
     }
@@ -244,7 +281,7 @@ export function useDirectory(filters: DirectoryFilters, sort: SortKey, dir: Sort
     setRows((r) => r?.map((x) => (x.id === id ? { ...x, ...patch } : x)) ?? null);
   }, []);
 
-  return { rows, total, loading, error, reload: load, patchRow };
+  return { rows, total, limits, loading, error, reload: load, patchRow };
 }
 
 /** Option counts for every filter menu, each counted with all the other filters applied. */
@@ -266,20 +303,112 @@ export function useFacets(filters: DirectoryFilters) {
   return { facets, reload: load };
 }
 
-export const EXPORT_LIMIT = 5000;
+/** Most rows one export call returns. Each row not already unlocked costs one export credit. */
+export const EXPORT_BATCH = 1000;
 
-/** Fetches every matching row (up to EXPORT_LIMIT) in pages of 1,000, in the order shown. */
-export async function fetchAllMatching(filters: DirectoryFilters, sort: SortKey, dir: SortDir, onProgress?: (done: number, total: number) => void) {
+export interface ExportResult {
+  rows: DirectoryRow[];
+  total: number;
+  charged: number;
+  exports_left: number;
+}
+
+/** Exports matching investors with full contact details, spending export credits, up to `max` rows. */
+export async function exportMatching(
+  filters: DirectoryFilters,
+  sort: SortKey,
+  dir: SortDir,
+  max: number,
+  onProgress?: (done: number, of: number) => void,
+): Promise<ExportResult> {
+  const out: DirectoryRow[] = [];
+  let charged = 0;
+  let left = Infinity;
+  let total = 0;
+  while (out.length < max) {
+    const { data, error } = await createClient().rpc("export_investors", {
+      p_filters: cleanFilters(filters),
+      p_sort: sort,
+      p_dir: dir,
+      p_limit: Math.min(EXPORT_BATCH, max - out.length),
+      p_offset: out.length,
+    });
+    if (error) throw toLimitError(error);
+    const res = data as ExportResult;
+    out.push(...res.rows);
+    charged += res.charged;
+    left = res.exports_left;
+    total = res.total;
+    onProgress?.(out.length, Math.min(max, total));
+    if (!res.rows.length || out.length >= total || left <= 0) break;
+  }
+  return { rows: out, total, charged, exports_left: left === Infinity ? 0 : left };
+}
+
+/** First rows of the current search, for batch selection. Masked like any search; costs row views. */
+export async function fetchMatching(filters: DirectoryFilters, sort: SortKey, dir: SortDir, max: number) {
   const out: DirectoryRow[] = [];
   let total = Infinity;
-  while (out.length < Math.min(total, EXPORT_LIMIT)) {
-    const res = await search(filters, sort, dir, Math.min(1000, EXPORT_LIMIT - out.length), out.length);
+  while (out.length < Math.min(total, max)) {
+    const res = await search(filters, sort, dir, Math.min(100, max - out.length), out.length);
     total = res.total;
     out.push(...res.rows);
-    onProgress?.(out.length, Math.min(total, EXPORT_LIMIT));
     if (!res.rows.length) break;
   }
-  return { rows: out, total: total === Infinity ? 0 : total };
+  return out;
+}
+
+export interface Contact {
+  email: string;
+  phone: string | null;
+  mobile: string | null;
+  direct_phone: string | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+}
+
+/** Spends one reveal credit (never twice for the same investor) and returns their contact details. */
+export async function revealInvestor(id: string): Promise<Contact> {
+  const { data, error } = await createClient().rpc("reveal_investor", { p_id: id });
+  if (error) throw toLimitError(error);
+  return data as Contact;
+}
+
+export interface Entitlements {
+  plan_id: "trial" | "starter" | "pro";
+  plan_name: string;
+  status: "trialing" | "active" | "past_due" | "canceled" | "expired";
+  active: boolean;
+  trial_ends_at: string | null;
+  period_start: string;
+  period_end: string | null;
+  max_rows: number | null;
+  page_size_max: number;
+  reveals_total: number;
+  reveals_left: number;
+  exports_total: number;
+  exports_left: number;
+  daily_row_views: number;
+  rows_viewed_today: number;
+  searches_per_minute: number;
+  /** Whole days left in the trial, worked out when loaded. */
+  trial_days_left: number | null;
+}
+
+/** The founder's plan, limits and what is left this period. */
+export function useEntitlements() {
+  const [ent, setEnt] = useState<Entitlements | null>(null);
+  const load = useCallback(async () => {
+    const { data } = await createClient().rpc("my_entitlements");
+    if (!data) return;
+    const e = data as Entitlements;
+    const left = e.trial_ends_at ? Math.max(0, Math.ceil((new Date(e.trial_ends_at).getTime() - Date.now()) / 86_400_000)) : null;
+    setEnt({ ...e, trial_days_left: left });
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  return { ent, reload: load };
 }
 
 export async function toggleSaved(id: string, saved: boolean) {

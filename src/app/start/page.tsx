@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/field";
 import { Loader } from "@/components/ui/kit";
 import { callFunction, createClient } from "@/lib/supabase/client";
+import { usePlanPrice } from "@/lib/plan";
 
 const TRIAL = [
   "Your startup profile, written from your website",
@@ -43,6 +44,7 @@ function Start() {
   const [waiting, setWaiting] = useState(returning);
   const [slow, setSlow] = useState(false);
   const polls = useRef(0);
+  const price = usePlanPrice();
 
   // Founders who already have a trial or plan never see this page.
   useEffect(() => {
@@ -90,7 +92,7 @@ function Start() {
   return (
     <AuthShell
       title="Start your 7-day free trial"
-      lead="Add a card to begin. Nothing is charged today; Centrale is $149 a month after the trial, and you can cancel any time before it ends."
+      lead={`Add a card to begin. Nothing is charged today; Centrale is ${price ?? "billed monthly"}${price ? " a month" : ""} after the trial, and you can cancel any time before it ends.`}
       footer={<span className="text-[13px] text-label">Payments are handled by Whop.</span>}
     >
       <div className="space-y-5">

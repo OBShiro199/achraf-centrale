@@ -9,6 +9,7 @@ import { Card, CardHeader, Pill, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { BrandMark } from "@/components/landing/logo";
 import { callFunction } from "@/lib/supabase/client";
+import { usePlanPrice } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 const n = (x: number) => x.toLocaleString("en-GB");
@@ -45,6 +46,7 @@ export default function BillingPage() {
   const params = useSearchParams();
   const { ent, reloadEnt } = useApp();
   const [busy, setBusy] = useState<"checkout" | "manage" | null>(null);
+  const price = usePlanPrice();
 
   const checkout = params.get("checkout");
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function BillingPage() {
                 Centrale
               </p>
               <p className="mt-3 flex items-baseline gap-1">
-                <span className="display tabular text-[42px] leading-none tracking-[-0.05em] text-display">$149</span>
+                <span className="display tabular text-[42px] leading-none tracking-[-0.05em] text-display">{price ?? "\u00a0"}</span>
                 <span className="text-[13px] text-muted">a month, after a 7-day free trial</span>
               </p>
             </div>

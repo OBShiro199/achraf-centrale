@@ -82,7 +82,7 @@ function ActivityChart({ days }: { days: { d: Date; sent: number; replies: numbe
 }
 
 export default function HomePage() {
-  const { profile, startup, signedUpAt, inbox, initialStats } = useApp();
+  const { profile, startup, signedUpAt, inbox, initialStats, ent } = useApp();
   const { stats: liveStats, messages, reload } = useStats();
   const stats = liveStats ?? initialStats;
   const { rows: top, reload: reloadInvestors } = useTopMatches(5);
@@ -124,7 +124,12 @@ export default function HomePage() {
 
   const steps = [
     { done: startup.analysis_status === "done", label: "Profile written", note: "From your website", href: "/dashboard/profile" },
-    { done: Boolean(inbox), label: "Inbox ready", note: inbox ? "Sending live" : "Needs setting up", href: "/dashboard/settings" },
+    {
+      done: Boolean(inbox),
+      label: "Inbox ready",
+      note: inbox ? "Sending live" : ent && !ent.paid ? "Starts with your plan" : "Needs setting up",
+      href: ent && !ent.paid ? "/dashboard/billing" : "/dashboard/settings",
+    },
     { done: saved >= 3, label: "Save 3 investors", note: `${Math.min(saved, 3)} of 3 saved`, href: "/dashboard/investors" },
     { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors" },
     { done: (stats?.investors_replied ?? 0) > 0, label: "Get first reply", note: "We email you", href: "/dashboard/inbox" },
@@ -136,6 +141,27 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
+      {ent && !ent.paid && (
+        <Settle className="mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#ecdcbf] bg-amber-soft/60 px-5 py-4">
+            <div className="max-w-[640px]">
+              <p className="text-[14.5px] font-medium text-ink">
+                {ent.status === "trialing"
+                  ? `You're on your free trial${ent.trial_days_left != null ? `, ${ent.trial_days_left} day${ent.trial_days_left === 1 ? "" : "s"} left` : ""}.`
+                  : "Your trial has ended."}
+              </p>
+              <p className="mt-0.5 text-[13px] text-muted">
+                {ent.status === "trialing"
+                  ? "You don't have a sending inbox yet. It's set up the moment your plan starts, along with sending, contact reveals and exports. Until then, build your profile and deck and browse your matches."
+                  : "Start your plan to get your sending inbox and email investors. Your profile and deck are saved."}
+              </p>
+            </div>
+            <ButtonLink href="/dashboard/billing" size="sm" variant="primary">
+              {ent.status === "trialing" ? "See your plan" : "Start your plan"}
+            </ButtonLink>
+          </div>
+        </Settle>
+      )}
       <Settle>
         <p className="text-[13px] text-label">{today}</p>
         <h2 className="mt-1 text-[clamp(28px,3.2vw,36px)] leading-tight tracking-[-0.045em]">

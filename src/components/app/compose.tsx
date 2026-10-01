@@ -23,7 +23,8 @@ export function ComposeModal({
   onSent?: (investorId: string) => void;
   firstEmail?: boolean;
 }) {
-  const { inbox } = useApp();
+  const { inbox, ent } = useApp();
+  const locked = ent != null && !ent.can_send;
   const toast = useToast();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -78,7 +79,7 @@ export function ComposeModal({
           <div className="space-y-2 border-b border-line-2 px-5 py-3 text-[13px]">
             <div className="flex gap-3">
               <span className="w-12 text-label">From</span>
-              <span className="text-ink">{inbox?.address ?? "Your inbox is still being set up"}</span>
+              <span className="text-ink">{inbox?.address ?? (locked ? "Your inbox is set up when your plan starts" : "Your inbox is still being set up")}</span>
             </div>
             <div className="flex gap-3">
               <span className="w-12 text-label">To</span>
@@ -109,8 +110,19 @@ export function ComposeModal({
               <RefreshCw className="h-3.5 w-3.5" /> Redraft
             </Button>
             <div className="flex items-center gap-3">
-              <span className="hidden text-[12px] text-label sm:inline">Drafted by Claude. Read before sending.</span>
-              <Button variant="primary" onClick={() => void send()} disabled={drafting || sending || !subject.trim() || !body.trim() || !inbox}>
+              <span className="hidden text-[12px] text-label sm:inline">
+                {locked ? (
+                  <>
+                    Sending starts with your plan.{" "}
+                    <a href="/dashboard/billing" className="text-ink underline-offset-2 hover:underline">
+                      Billing
+                    </a>
+                  </>
+                ) : (
+                  "Drafted by Claude. Read before sending."
+                )}
+              </span>
+              <Button variant="primary" onClick={() => void send()} disabled={locked || drafting || sending || !subject.trim() || !body.trim() || !inbox}>
                 <Send className="h-3.5 w-3.5" /> {sending ? "Sending" : "Send"}
               </Button>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { useEntitlements, type Entitlements } from "@/lib/directory";
 import type { DashboardStats, Inbox, Profile, Startup } from "@/lib/types";
 
 interface AppState {
@@ -14,6 +15,9 @@ interface AppState {
   setStartup: (s: Startup) => void;
   unread: number;
   setUnread: (n: number) => void;
+  /** Plan, trial and credits; null until loaded. */
+  ent: Entitlements | null;
+  reloadEnt: () => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -28,8 +32,11 @@ export function AppProvider({
   const [profile, setProfile] = useState(initial.profile);
   const [startup, setStartup] = useState(initial.startup);
   const [unread, setUnread] = useState(0);
+  const { ent, reload: reloadEnt } = useEntitlements();
   return (
-    <Ctx.Provider value={{ profile, startup, inbox: initial.inbox, signedUpAt: initial.signedUpAt, initialStats: initial.stats, setProfile, setStartup, unread, setUnread }}>
+    <Ctx.Provider
+      value={{ profile, startup, inbox: initial.inbox, signedUpAt: initial.signedUpAt, initialStats: initial.stats, setProfile, setStartup, unread, setUnread, ent, reloadEnt }}
+    >
       {children}
     </Ctx.Provider>
   );

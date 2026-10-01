@@ -2,7 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
-const PROTECTED = ["/dashboard", "/onboarding"];
+const PROTECTED = ["/dashboard", "/onboarding", "/start"];
+// Pages that need a trial or plan; accounts without one are sent to /start to add a card.
+const NEEDS_PLAN = ["/dashboard", "/onboarding"];
 const AUTH_PAGES = ["/login", "/signup"];
 
 export async function proxy(request: NextRequest) {
@@ -33,6 +35,15 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
+  }
+  if (signedIn && NEEDS_PLAN.some((p) => path.startsWith(p))) {
+    const { data: sub } = await supabase.from("subscriptions").select("status").maybeSingle();
+    if (!sub || sub.status === "pending") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/start";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
   }
   if (signedIn && AUTH_PAGES.includes(path)) {
     const url = request.nextUrl.clone();

@@ -9,6 +9,7 @@ import { formatFunding, isUpgradeError, reasonLabel, revealInvestor, toLimitErro
 import { INVESTOR_TYPES, label, ROLES, SECTORS, STAGES, VALUES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 import { LinkedInMark, XMark } from "./brand-icons";
+import { useApp } from "./context";
 
 interface Detail {
   headline: string | null;
@@ -77,6 +78,8 @@ export function InvestorDrawerBody({
   onRevealed: (c: Contact) => void;
   revealsLeft: number | null;
 }) {
+  const { ent } = useApp();
+  const trial = ent != null && !ent.paid;
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
@@ -126,9 +129,12 @@ export function InvestorDrawerBody({
     ...(c?.direct_phone ? [{ label: "Direct line", value: c.direct_phone }] : []),
     ...(detail?.firm_phone ? [{ label: "Firm", value: detail.firm_phone }] : []),
   ];
-  const hidden = [row.has_mobile && "mobile", row.has_direct && "direct line", row.has_linkedin && "LinkedIn", row.has_twitter && "X"].filter(
-    Boolean,
-  ) as string[];
+  const hidden = [
+    row.has_mobile && "mobile",
+    row.has_direct && "direct line",
+    row.has_linkedin && "LinkedIn",
+    row.has_twitter && "X",
+  ].filter(Boolean) as string[];
 
   return (
     <div className="pb-10">
@@ -196,7 +202,14 @@ export function InvestorDrawerBody({
             <p className="mt-1.5 text-[13.5px] text-pencil">{detailError}</p>
           ) : about ? (
             <>
-              <p className={cn("mt-1.5 whitespace-pre-line border-l-2 border-vermilion/60 pl-3 text-[14px] leading-relaxed text-body", !moreAbout && "line-clamp-5")}>{about}</p>
+              <p
+                className={cn(
+                  "mt-1.5 whitespace-pre-line border-l-2 border-vermilion/60 pl-3 text-[14px] leading-relaxed text-body",
+                  !moreAbout && "line-clamp-5",
+                )}
+              >
+                {about}
+              </p>
               {about.length > 320 && (
                 <button onClick={() => setMoreAbout((v) => !v)} className="mt-1 pl-3 text-[12.5px] text-label hover:text-ink">
                   {moreAbout ? "Show less" : "Read more"}
@@ -315,8 +328,16 @@ export function InvestorDrawerBody({
                 <p className="flex items-center gap-1.5 text-[12.5px] text-muted">
                   <Lock className="h-3.5 w-3.5" /> Email{hidden.length ? `, ${hidden.join(", ")}` : ""} hidden
                 </p>
-                <p className="mt-1 text-[12px] text-label">You can email them from Centrale without revealing anything. Revealing uses one credit.</p>
-                {revealError ? (
+                <p className="mt-1 text-[12px] text-label">
+                  {trial
+                    ? "Full contact details unlock when your plan starts, after the 7-day trial."
+                    : "You can email them from Centrale without revealing anything. Revealing uses one credit."}
+                </p>
+                {trial ? (
+                  <ButtonLink href="/dashboard/billing" size="sm" className="mt-2">
+                    See your plan
+                  </ButtonLink>
+                ) : revealError ? (
                   <div className="mt-2">
                     <p className="text-[12.5px] text-pencil">{revealError.message}</p>
                     {isUpgradeError(revealError) && (
@@ -333,51 +354,80 @@ export function InvestorDrawerBody({
                 )}
               </div>
             )}
-            {phones.map((p) => (
-              <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5">
-                <Phone className="h-4 w-4 shrink-0 text-label" />
-                <a href={`tel:${tel(p.value)}`} className="tabular hover:text-vermilion">
-                  {p.value}
-                </a>
-                <span className="text-[12px] text-label">{p.label}</span>
-                <span className="ml-auto flex items-center gap-1">
-                  {p.mobile && (
-                    <a
-                      href={`https://wa.me/${tel(p.value).replace("+", "")}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-[5px] border border-line px-2 py-0.5 text-[12px] text-green hover:border-green/40"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                    </a>
-                  )}
-                  <CopyButton text={p.value} />
-                </span>
-              </div>
-            ))}
+            {phones.map((p) =>
+              // Truncated numbers ("+1 201-•••-••••") are shown as text only: nothing to call, copy or message yet.
+              p.value.includes("•") ? (
+                <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5 text-muted">
+                  <Phone className="h-4 w-4 shrink-0 text-label" />
+                  <span className="tabular">{p.value}</span>
+                  <span className="text-[12px] text-label">{p.label}</span>
+                </div>
+              ) : (
+                <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5">
+                  <Phone className="h-4 w-4 shrink-0 text-label" />
+                  <a href={`tel:${tel(p.value)}`} className="tabular hover:text-vermilion">
+                    {p.value}
+                  </a>
+                  <span className="text-[12px] text-label">{p.label}</span>
+                  <span className="ml-auto flex items-center gap-1">
+                    {p.mobile && (
+                      <a
+                        href={`https://wa.me/${tel(p.value).replace("+", "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-[5px] border border-line px-2 py-0.5 text-[12px] text-green hover:border-green/40"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                      </a>
+                    )}
+                    <CopyButton text={p.value} />
+                  </span>
+                </div>
+              ),
+            )}
             {row.do_not_call && (
               <div className="flex items-start gap-2.5 bg-pencil-soft/50 px-4 py-2.5 text-[12.5px] text-pencil">
-                <PhoneOff className="mt-0.5 h-4 w-4 shrink-0" />
-                A mobile number for this person is on a do-not-call list, so it is hidden.
+                <PhoneOff className="mt-0.5 h-4 w-4 shrink-0" />A mobile number for this person is on a do-not-call list, so it is hidden.
               </div>
             )}
             {c?.linkedin_url && (
-              <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+              <a
+                href={c.linkedin_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
+              >
                 <LinkedInMark className="h-4 w-4 shrink-0 text-label" /> LinkedIn profile
               </a>
             )}
             {c?.twitter_url && (
-              <a href={c.twitter_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
-                <XMark className="h-4 w-4 shrink-0 text-label" /> {c.twitter_url.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, "@").replace(/^@@/, "@")}
+              <a
+                href={c.twitter_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
+              >
+                <XMark className="h-4 w-4 shrink-0 text-label" />{" "}
+                {c.twitter_url.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, "@").replace(/^@@/, "@")}
               </a>
             )}
             {row.website_url && (
-              <a href={row.website_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+              <a
+                href={row.website_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
+              >
                 <Globe className="h-4 w-4 shrink-0 text-label" /> {row.website_url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
               </a>
             )}
             {detail?.firm_linkedin && (
-              <a href={detail.firm_linkedin} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+              <a
+                href={detail.firm_linkedin}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
+              >
                 <Building2 className="h-4 w-4 shrink-0 text-label" /> {row.firm} on LinkedIn
               </a>
             )}

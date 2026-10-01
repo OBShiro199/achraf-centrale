@@ -47,7 +47,9 @@ npm run dev
 | `match-investors` | on | Claude picks match keywords from the directory vocabulary, SQL scores everyone, Claude shortlists 25 with reasons |
 | `generate-deck` | on | Claude writes an 11-slide deck from the site and five answers, rendered to PDF with hand-drawn charts |
 | `process-outbox` | off (cron secret) | Plans follow-ups and sends due Outbox emails within OpenMail's limits |
-| `billing` | on | Stripe Checkout and customer portal sessions |
+| `whop` | on | Whop checkout for the monthly plan, tagged with the founder's id, and the manage link |
+| `whop-webhook` | off (Standard Webhooks signature) | Keeps `subscriptions` in step with Whop; creates the inbox when a plan is paid |
+| `billing` | on | Stripe Checkout and portal (dormant, replaced by Whop) |
 | `stripe-webhook` | off (Stripe signature) | Keeps `subscriptions` in step with Stripe |
 
 ### Secrets
@@ -77,10 +79,10 @@ Migrations are in `supabase/migrations`.
 ## Known limits
 
 - **OpenMail free plan: 3 inboxes per account.** The fourth signup gets a clear "inbox limit" message and a *Set up inbox* button in the top bar and Settings once the limit is raised. Cold sends are capped at 20 a day per new inbox and 30 a day per account.
-- Reply notification links use `APP_URL` from Vault (currently https://achraf-centrale.vercel.app).
+- Reply notification links use `APP_URL` from Vault (currently https://www.centralegtm.com).
 - PPTX, KEY and DOCX decks are stored but not read yet; PDFs are read by Claude.
 - Search takes about 150 to 300ms on today's 13.5k investors on the smallest Supabase instance. At 200k expect it to scale roughly linearly; move to a larger compute size before importing.
-- Stripe runs in test mode once the keys are in Vault; see the Stripe guide for Achraf.
+- Billing is Whop: one plan, $149 a month, 7-day trial with a card up front. Trial accounts get profile, scrape, deck and a browsable directory with emails and phones truncated; no inbox, sending, reveals or exports until the plan is paid. Stripe code is kept but unused.
 - LinkedIn and WhatsApp outreach are researched in `docs/research/multichannel-outreach.md`, not built.
 
 ## Brand

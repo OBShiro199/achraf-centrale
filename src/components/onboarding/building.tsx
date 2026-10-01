@@ -107,6 +107,8 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
+  // Trials have no inbox; it is created when the plan starts.
+  const [paid, setPaid] = useState<boolean | null>(null);
   const [fits, setFits] = useState<{ total: number; strong: number } | null>(null);
   const started = useRef(false);
   const deckRun = useRef<Promise<void> | null>(null);
@@ -136,9 +138,11 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
 
       set("profile", "running");
       set("inbox", "running");
+      const { data: canSend } = await supabase.rpc("can_send_email");
+      setPaid(Boolean(canSend));
       const [profileRes, inboxRes] = await Promise.allSettled([
         callFunction<{ startup: Startup }>("build-profile"),
-        callFunction<{ inbox: Inbox }>("provision-inbox"),
+        canSend ? callFunction<{ inbox: Inbox }>("provision-inbox") : Promise.resolve({ inbox: null }),
       ]);
       if (profileRes.status === "fulfilled") {
         setStartup(profileRes.value.startup);
@@ -147,7 +151,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
         startDeck();
       } else set("profile", "error");
       if (inboxRes.status === "fulfilled") {
-        setInbox(inboxRes.value.inbox);
+        setInbox(inboxRes.value.inbox as Inbox | null);
         set("inbox", "done");
       } else set("inbox", "error");
 
@@ -205,7 +209,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const rows: { key: TaskKey; label: string }[] = [
     { key: "read", label: `Reading ${domain}` },
     { key: "profile", label: "Writing your startup profile" },
-    { key: "inbox", label: "Setting up your sending inbox" },
+    { key: "inbox", label: paid === false ? "Sending inbox: set up when your plan starts" : "Setting up your sending inbox" },
     { key: "investors", label: "Matching you with investors" },
     { key: "match", label: "Scoring investors against your profile" },
     ...(wantsDeck ? [{ key: "deck" as const, label: "Drafting your pitch deck" }] : []),
@@ -269,10 +273,14 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4">
                 <div>
                   <p className="text-[12px] text-label">Your inbox</p>
-                  <p className="relative mt-0.5 truncate text-[13.5px] font-medium text-ink">
-                    {inbox?.address}
-                    <ScribbleBurst className="absolute -top-4 right-2 h-4 w-8" immediate delay={0.6} />
-                  </p>
+                  {inbox ? (
+                    <p className="relative mt-0.5 truncate text-[13.5px] font-medium text-ink">
+                      {inbox.address}
+                      <ScribbleBurst className="absolute -top-4 right-2 h-4 w-8" immediate delay={0.6} />
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[13.5px] text-muted">Set up when your plan starts</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[12px] text-label">Investors scored</p>

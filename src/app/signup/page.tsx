@@ -23,7 +23,7 @@ export default function SignupPage() {
       await callFunction("signup", { email, password });
       const { error: signInError } = await createClient().auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
-      router.push("/onboarding");
+      router.push("/start");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create your account");
@@ -34,7 +34,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Start your raise"
-      lead="Create an account. Your sending inbox is ready before you finish onboarding."
+      lead="Create an account, then start your 7-day free trial."
       footer={
         <>
           Already have an account?{" "}

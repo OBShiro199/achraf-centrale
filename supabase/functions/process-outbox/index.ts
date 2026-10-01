@@ -4,6 +4,7 @@ import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { hasPaidPlan } from "../_shared/inbox.ts";
 
 const DAILY_CAP = 20;
 const PER_RUN_PER_INBOX = 8;
@@ -107,6 +108,13 @@ async function sendDue() {
     if (!inbox) {
       await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "No sending inbox yet" });
       log.push(`${e.id}: no inbox, retry in 1h`);
+      continue;
+    }
+
+    // Trials and lapsed plans keep their queue; it sends once the plan is paid.
+    if (!(await hasPaidPlan(e.owner_id))) {
+      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "Sending starts when your plan starts" });
+      log.push(`${e.id}: no paid plan, retry in 1h`);
       continue;
     }
 

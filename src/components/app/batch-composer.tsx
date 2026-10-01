@@ -36,7 +36,8 @@ const SPACING = [
  * each one, then queues them in the Outbox, spaced out so the inbox never sends in a burst.
  */
 export function BatchComposer({ rows, open, onClose, onQueued }: { rows: DirectoryRow[]; open: boolean; onClose: () => void; onQueued: () => void }) {
-  const { inbox } = useApp();
+  const { inbox, ent } = useApp();
+  const locked = ent != null && !ent.can_send;
   const toast = useToast();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [active, setActive] = useState(0);
@@ -207,9 +208,11 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-5 py-3">
         <p className="max-w-[460px] text-[12px] text-label">
-          {inbox
-            ? "Queued emails send from your inbox, up to 20 new emails a day. Anything over rolls to the next morning."
-            : "Your inbox is not set up yet. Emails will wait in the Outbox until it is."}
+          {locked
+            ? "Queueing and sending start with your plan, after the 7-day trial. You can read every draft now."
+            : inbox
+              ? "Queued emails send from your inbox, up to 20 new emails a day. Anything over rolls to the next morning."
+              : "Your inbox is not set up yet. Emails will wait in the Outbox until it is."}
           {pending > 0 && ` Drafting ${pending} more.`}
         </p>
         <div className="flex items-center gap-2">
@@ -220,7 +223,7 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
               </option>
             ))}
           </Select>
-          <Button variant="primary" size="sm" disabled={!ready.length || queueing} onClick={() => void queue()}>
+          <Button variant="primary" size="sm" disabled={locked || !ready.length || queueing} onClick={() => void queue()}>
             <Send className="h-3.5 w-3.5" /> {queueing ? "Queueing" : `Queue ${ready.length} email${ready.length === 1 ? "" : "s"}`}
           </Button>
         </div>

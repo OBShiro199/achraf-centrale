@@ -216,7 +216,17 @@ export interface SearchLimits {
 /** Errors from the metered database functions arrive as "code: sentence". */
 export class LimitError extends Error {
   constructor(
-    public code: "rate_limited" | "daily_limit" | "page_limit" | "no_reveals" | "export_locked" | "no_exports" | "not_signed_in" | "not_found" | "other",
+    public code:
+      | "rate_limited"
+      | "daily_limit"
+      | "page_limit"
+      | "no_reveals"
+      | "trial_locked"
+      | "export_locked"
+      | "no_exports"
+      | "not_signed_in"
+      | "not_found"
+      | "other",
     message: string,
   ) {
     super(message);
@@ -230,7 +240,7 @@ export function toLimitError(error: { message: string }) {
 }
 
 export const isUpgradeError = (e: unknown) =>
-  e instanceof LimitError && ["daily_limit", "page_limit", "no_reveals", "export_locked", "no_exports"].includes(e.code);
+  e instanceof LimitError && ["daily_limit", "page_limit", "no_reveals", "trial_locked", "export_locked", "no_exports"].includes(e.code);
 
 async function search(filters: DirectoryFilters, sort: SortKey, dir: SortDir, limit: number, offset: number) {
   const { data, error } = await createClient().rpc("search_investors", {
@@ -375,10 +385,15 @@ export async function revealInvestor(id: string): Promise<Contact> {
 }
 
 export interface Entitlements {
-  plan_id: "trial" | "starter" | "pro";
+  plan_id: string;
   plan_name: string;
-  status: "trialing" | "active" | "past_due" | "canceled" | "expired";
+  /** pending = account made, no card yet; trialing = 7 days with a card on file; active = paid. */
+  status: "pending" | "trialing" | "active" | "past_due" | "canceled" | "expired";
   active: boolean;
+  /** A paid plan: inbox, sending, reveals and exports. */
+  paid: boolean;
+  can_send: boolean;
+  manage_url: string | null;
   trial_ends_at: string | null;
   period_start: string;
   period_end: string | null;

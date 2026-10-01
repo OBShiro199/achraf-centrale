@@ -155,9 +155,15 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function InboxChip() {
-  const { inbox } = useApp();
+  const { inbox, ent } = useApp();
   const [copied, setCopied] = useState(false);
   const toast = useToast();
+  if (!inbox && ent && !ent.paid)
+    return (
+      <Link href="/dashboard/billing" className="text-[12.5px] text-label hover:text-ink">
+        {ent.status === "trialing" ? "Trial: inbox starts with your plan" : "Inbox starts with your plan"}
+      </Link>
+    );
   if (!inbox)
     return (
       <div className="flex items-center gap-2">

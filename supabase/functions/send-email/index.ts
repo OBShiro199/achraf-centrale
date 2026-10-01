@@ -2,6 +2,7 @@
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { hasPaidPlan } from "../_shared/inbox.ts";
 
 serve(async (req) => {
   const user = await requireUser(req);
@@ -12,6 +13,7 @@ serve(async (req) => {
     idempotency_key?: string;
   }>(req);
   if (!investor_id || !subject?.trim() || !body?.trim()) throw new HttpError(400, "Add a subject and a message");
+  if (!(await hasPaidPlan(user.id))) throw new HttpError(402, "Sending starts when your plan starts, after the 7-day trial.");
 
   const [{ data: inbox }, { data: investor }] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),

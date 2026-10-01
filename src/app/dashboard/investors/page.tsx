@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Minus, Plus, Search, Send, Sparkles, Star, X } from "lucide-react";
 import { BatchComposer, BATCH_LIMIT } from "@/components/app/batch-composer";
+import { useApp } from "@/components/app/context";
 import { ComposeModal } from "@/components/app/compose";
 import { ChoiceMenu, FilterChip, FilterMenu, GroupedMenu, PanelMenu, Toggle, type Option } from "@/components/app/filter-menu";
 import { ExportMenu } from "@/components/app/export-menu";
@@ -242,6 +243,8 @@ function ActiveFilters({ filters, set, clear }: { filters: DirectoryFilters; set
 
 function Directory({ initial, directorySize }: { initial: DirectoryState; directorySize: number | null }) {
   const toast = useToast();
+  const { ent: plan } = useApp();
+  const sendingLocked = plan != null && !plan.can_send;
   const [filters, setFilters] = useState<DirectoryFilters>(initial.filters);
   const [q, setQ] = useState(initial.filters.q ?? "");
   const [sort, setSort] = useState<SortKey>(initial.sort);
@@ -601,7 +604,11 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
                 <Star className="h-3.5 w-3.5" /> Save
               </button>
               <button
-                onClick={() => setBatchOpen(true)}
+                onClick={() =>
+                  sendingLocked
+                    ? toast({ title: "Emailing starts with your plan", body: "Your sending inbox is set up when the 7-day trial ends and your plan starts." })
+                    : setBatchOpen(true)
+                }
                 disabled={selected.size > BATCH_LIMIT}
                 className="flex h-8 items-center gap-1.5 rounded-[6px] bg-vermilion px-3 text-[13px] font-medium text-ivory hover:brightness-105 disabled:opacity-50"
               >

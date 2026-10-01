@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { AutoHeight } from "@/components/ui/auto-height";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/landing/logo";
@@ -58,6 +59,11 @@ export default function OnboardingPage() {
   const [needsScrape, setNeedsScrape] = useState(true);
   const scrapeRef = useRef<Promise<unknown> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const questionsRef = useRef<HTMLDivElement>(null);
+  // Each step starts at the top of the question column.
+  useEffect(() => {
+    questionsRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [deckInputs, setDeckInputs] = useState<DeckInputs>({});
@@ -299,8 +305,9 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-line bg-paper/80 backdrop-blur">
+    // Desktop: the page is exactly one screen tall. Only the questions scroll; the worksheet stays put.
+    <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
+      <header className="shrink-0 border-b border-line bg-paper/80 backdrop-blur">
         <div className="mx-auto flex h-[60px] max-w-[1280px] items-center justify-between gap-6 px-5 md:px-8">
           <Logo href="/" />
           <div className="flex flex-1 items-center justify-end gap-4 md:justify-center">
@@ -335,23 +342,27 @@ export default function OnboardingPage() {
         </div>
       </header>
 
-      <main className={cn("flex-1", step === "build" ? "graph-paper" : "")}>
+      <main className={cn("flex-1 lg:min-h-0", step === "build" ? "graph-paper lg:overflow-y-auto" : "")}>
         {step === "build" ? (
           <div className="flex min-h-[calc(100dvh-61px)] items-center justify-center px-5 py-16">
             <Building domain={draft.domain} needsScrape={needsScrape} wantsDeck={draft.wantsDeck && !draft.deckName} />
           </div>
         ) : (
-          <div className="mx-auto grid max-w-[1280px] lg:grid-cols-[1fr_1fr]">
-            <div className="flex flex-col px-5 py-12 md:px-12 lg:min-h-[calc(100dvh-61px)] lg:py-16">
-              <div className="w-full max-w-[520px] flex-1">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={step}
-                    initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
-                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
-                    transition={{ duration: 0.45, ease }}
-                  >
+          <div className="mx-auto grid max-w-[1280px] lg:h-full lg:grid-cols-[1fr_1fr]">
+            <div ref={questionsRef} className="quiet-scroll flex flex-col px-5 py-12 md:px-12 lg:h-full lg:overflow-y-auto lg:py-16">
+              <div className="w-full max-w-[520px]">
+                {/* The outgoing step leaves the layout at once (popLayout) and the height eases to the next one. */}
+                <AutoHeight>
+                  <div className="relative">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.div
+                        key={step}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6, transition: { duration: 0.18 } }}
+                        transition={{ duration: 0.36, ease }}
+                        className="w-full"
+                      >
                     {step === "name" && (
                       <Question n={1} title="What should we call you?" lead="Investors see this name on every email.">
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -555,8 +566,10 @@ export default function OnboardingPage() {
                         />
                       </Question>
                     )}
-                  </motion.div>
-                </AnimatePresence>
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                </AutoHeight>
 
                 <div className="mt-8 space-y-4">
                   <FormError>{error}</FormError>
@@ -577,7 +590,7 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            <aside className="graph-paper relative hidden items-center justify-center border-t border-line px-10 pb-24 pt-16 md:flex lg:min-h-[calc(100dvh-61px)] lg:border-l lg:border-t-0 lg:pb-16">
+            <aside className="graph-paper relative hidden items-center justify-center border-t border-line px-10 pb-24 pt-16 md:flex lg:h-full lg:overflow-hidden lg:border-l lg:border-t-0 lg:pb-16">
               <Worksheet draft={draft} />
               <div className="absolute bottom-10 left-10">
                 <Hand className="text-[20px]" tilt={-3}>

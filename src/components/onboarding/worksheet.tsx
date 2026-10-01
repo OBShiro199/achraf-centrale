@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ScribbleTick } from "@/components/sketch/draw";
+import { AutoHeight } from "@/components/ui/auto-height";
 import { HEADCOUNT, INVESTOR_TYPES, label, REVENUE, STAGES, VALUES } from "@/lib/taxonomy";
 
 export interface Draft {
@@ -28,20 +29,28 @@ function Row({ k, v, done }: { k: string; v: React.ReactNode; done: boolean }) {
   return (
     <div className="grid grid-cols-[88px_1fr_20px] items-baseline gap-3 border-b border-[#e9e2d6]/70 py-2.5">
       <span className="text-[12.5px] text-label">{k}</span>
-      <span className="min-h-[24px]">
-        <AnimatePresence mode="wait">
+      {/* Value and placeholder share one grid cell, so writing a value in never jolts the row. */}
+      <span className="grid min-h-[24px] items-end">
+        <AnimatePresence initial={false}>
           {done ? (
             <motion.span
               key="v"
               initial={{ opacity: 0, clipPath: "inset(0 100% 0 0)" }}
               animate={{ opacity: 1, clipPath: "inset(0 0% 0 0)" }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.7, ease: [0.22, 0.61, 0.21, 1] }}
-              className="hand block text-[21px] leading-[1.1] text-ink"
+              className="hand col-start-1 row-start-1 block text-[21px] leading-[1.1] text-ink"
             >
               {v}
             </motion.span>
           ) : (
-            <motion.span key="e" className="block h-[20px] border-b border-dotted border-faint" />
+            <motion.span
+              key="e"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              className="col-start-1 row-start-1 block h-[20px] border-b border-dotted border-faint"
+            />
           )}
         </AnimatePresence>
       </span>
@@ -66,7 +75,7 @@ export function Worksheet({ draft }: { draft: Draft }) {
         </div>
         <p className="mt-0.5 text-[12px] text-label">Filled in as you answer.</p>
 
-        <div className="mt-4">
+        <AutoHeight className="mt-4">
           <Row k="Founder" v={name} done={Boolean(draft.firstName)} />
           <Row
             k="Company"
@@ -83,7 +92,7 @@ export function Worksheet({ draft }: { draft: Draft }) {
           />
           <AnimatePresence>
             {(draft.scraping || draft.siteDescription) && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <p className="border-b border-[#e9e2d6]/70 py-2.5 pl-[100px] text-[13px] leading-snug text-muted">
                   {draft.scraping ? <span className="text-label">Reading {draft.domain}…</span> : draft.siteDescription}
                 </p>
@@ -103,7 +112,7 @@ export function Worksheet({ draft }: { draft: Draft }) {
             v={draft.deckName ?? (draft.deckAnswers ? `please draft one, ${draft.deckAnswers} of 5 answers` : "please draft one")}
             done={Boolean(draft.deckName) || draft.wantsDeck}
           />
-        </div>
+        </AutoHeight>
       </div>
     </div>
   );

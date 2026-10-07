@@ -606,7 +606,7 @@ function Directory({ initial, directorySize }: { initial: DirectoryState; direct
               <button
                 onClick={() =>
                   sendingLocked
-                    ? toast({ title: "Emailing starts with your plan", body: "Your sending inbox is set up when the 7-day trial ends and your plan starts." })
+                    ? toast({ title: "Emailing starts with your plan", body: "Your inbox is ready. Sending starts when the 7-day trial ends and your plan starts." })
                     : setBatchOpen(true)
                 }
                 disabled={selected.size > BATCH_LIMIT}

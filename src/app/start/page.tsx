@@ -12,10 +12,11 @@ import { usePlanPrice } from "@/lib/plan";
 
 const TRIAL = [
   "Your startup profile, written from your website",
-  "An AI pitch deck as a PDF",
+  "Your own inbox, on your own domain if you connect one",
+  "A researched pitch deck in your brand, as a PDF",
   "Browse the investor database and see your best matches",
 ];
-const PAID = ["Your own sending inbox", "Email investors, with automatic follow-ups", "Reveal and export contact details"];
+const PAID = ["Email investors, with automatic follow-ups", "Reveal and export contact details"];
 
 /** Where a founder goes next once their trial has started. */
 async function nextPath() {

@@ -86,3 +86,11 @@ export function normaliseDomain(input: string): string {
     throw new HttpError(400, "That does not look like a domain");
   }
 }
+
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+/** Keeps work running after the response is sent (Supabase background tasks). */
+export function background(task: Promise<unknown>) {
+  const guarded = task.catch((err) => console.error("background task failed", err));
+  if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(guarded);
+}

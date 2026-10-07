@@ -64,6 +64,7 @@ async function planFollowUps(dryRun: boolean) {
       schema: { type: "object", additionalProperties: false, required: ["body"], properties: { body: { type: "string" } } },
       effort: "low",
       maxTokens: 2000,
+      track: { owner: c.owner_id, feature: "follow_up_draft" },
     });
 
     const due = new Date(new Date(c.sent_at).getTime() + c.follow_up_days * 86_400_000);

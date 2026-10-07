@@ -120,6 +120,7 @@ serve(async (req) => {
       content,
       schema: SCHEMA,
       effort: "medium",
+      track: { owner: user.id, feature: "profile" },
     });
 
     const clean = {

@@ -14,28 +14,41 @@ serve(async (req) => {
   const user = await requireUser(req);
   const input = await readJson<Body>(req);
 
-  const { data: inbox } = await admin
+  // The active inbox sends; inboxes retired by a domain switch still hold earlier threads, so they are read too.
+  const { data: inboxes } = await admin
     .from("inboxes")
     .select("*")
     .eq("owner_id", user.id)
-    .eq("status", "active")
-    .maybeSingle();
+    .in("status", ["active", "retired"])
+    .order("created_at", { ascending: false });
+  const inbox = (inboxes ?? []).find((i) => i.status === "active");
   if (!inbox) return json({ inbox: null, threads: [] });
+  const owned = new Map((inboxes ?? []).map((i) => [i.openmail_inbox_id as string, i]));
 
-  const inboxPath = `/v1/inboxes/${inbox.openmail_inbox_id}`;
-
-  // Threads are only reachable through the founder's own inbox.
+  // Threads are only reachable through the founder's own inboxes.
   async function loadThread(threadId: string) {
     const thread = await openmail<{ threadId: string; inboxId: string; subject: string; isRead: boolean; data: OMMessage[] }>(
       `/v1/threads/${encodeURIComponent(threadId)}/messages`,
     );
-    if (thread.inboxId !== inbox.openmail_inbox_id) throw new HttpError(404, "Thread not found");
-    return thread;
+    const from = owned.get(thread.inboxId);
+    if (!from) throw new HttpError(404, "Thread not found");
+    return { ...thread, from };
   }
 
   switch (input.action ?? "threads") {
     case "threads": {
-      const { data: threads } = await openmail<{ data: OMThread[] }>(`${inboxPath}/threads?limit=50`);
+      // Retired inboxes on a previous mail account may be gone; skip them rather than fail.
+      const lists = await Promise.all(
+        [...owned.values()].map((i) =>
+          openmail<{ data: OMThread[] }>(`/v1/inboxes/${i.openmail_inbox_id}/threads?limit=50`)
+            .then((r) => r.data)
+            .catch((err) => {
+              if (i.status === "active") throw err;
+              return [] as OMThread[];
+            })
+        ),
+      );
+      const threads = lists.flat().sort((a, b) => Date.parse(b.lastMessageAt) - Date.parse(a.lastMessageAt)).slice(0, 80);
       const ids = threads.map((t) => t.id);
       const { data: rows } = ids.length
         ? await admin
@@ -111,7 +124,8 @@ serve(async (req) => {
       const outreachId = crypto.randomUUID();
       let result: OMSendResult;
       try {
-        result = await openmail<OMSendResult>(`${inboxPath}/send`, {
+        // Reply from the address the thread started on, so the investor sees one conversation.
+        result = await openmail<OMSendResult>(`/v1/inboxes/${thread.from.openmail_inbox_id}/send`, {
           body: { to, threadId: input.thread_id, body: toTrackedHtml(input.body, outreachId) },
           idempotencyKey: outreachId,
         });
@@ -123,12 +137,12 @@ serve(async (req) => {
         id: outreachId,
         owner_id: user.id,
         investor_id: link?.investor_id ?? null,
-        inbox_id: inbox.id,
+        inbox_id: thread.from.id,
         direction: "outbound",
         kind: "reply",
         openmail_message_id: result.messageId,
         openmail_thread_id: result.threadId,
-        from_addr: inbox.address,
+        from_addr: thread.from.address,
         to_addr: to,
         subject: `Re: ${thread.subject}`,
         body: input.body.trim(),

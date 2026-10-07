@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, Check, Copy, CreditCard, FileText, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, Check, Copy, CreditCard, FileText, Globe, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/landing/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { brandConfetti } from "@/components/ui/kit";
@@ -19,12 +19,14 @@ const NAV = [
   { href: "/dashboard/investors", label: "Investors", icon: Users },
   { href: "/dashboard/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/dashboard/outbox", label: "Outbox", icon: Send },
+  { href: "/dashboard/domain", label: "Custom domain", icon: Globe },
   { href: "/dashboard/deck", label: "Pitch deck", icon: FileText },
   { href: "/dashboard/profile", label: "Startup profile", icon: Building2 },
 ];
 const NAV_2 = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
+  { href: "/dashboard/docs", label: "Docs", icon: BookOpen },
 ];
 
 const TITLES: Record<string, string> = {
@@ -32,10 +34,12 @@ const TITLES: Record<string, string> = {
   "/dashboard/investors": "Investors",
   "/dashboard/inbox": "Inbox",
   "/dashboard/outbox": "Outbox",
+  "/dashboard/domain": "Custom domain",
   "/dashboard/deck": "Pitch deck",
   "/dashboard/profile": "Startup profile",
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",
+  "/dashboard/docs": "Docs",
 };
 
 function Favicon({ src, name, className }: { src: string | null; name: string; className?: string }) {
@@ -158,10 +162,11 @@ function InboxChip() {
   const { inbox, ent } = useApp();
   const [copied, setCopied] = useState(false);
   const toast = useToast();
-  if (!inbox && ent && !ent.paid)
+  // The inbox comes with the trial; founders without a started trial or plan are sent to Billing.
+  if (!inbox && ent && !ent.active)
     return (
       <Link href="/dashboard/billing" className="text-[12.5px] text-label hover:text-ink">
-        {ent.status === "trialing" ? "Trial: inbox starts with your plan" : "Inbox starts with your plan"}
+        Start your trial for an inbox
       </Link>
     );
   if (!inbox)

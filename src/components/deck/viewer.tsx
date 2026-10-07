@@ -20,7 +20,9 @@ const turn: Variants = {
 /** Slide-by-slide deck reader: arrow keys, swipe, prev and next, and a thumbnail strip. */
 export function DeckViewer({ deck, month, website, contact }: { deck: Deck; month: string; website?: string | null; contact?: string | null }) {
   const [[index, dir], setPos] = useState<[number, number]>([0, 0]);
-  const total = deck.slides.length;
+  // Researched decks close with a sources slide that is not one of the written slides.
+  const hasSources = Boolean(deck.sources?.length);
+  const total = deck.slides.length + (hasSources ? 1 : 0);
   const strip = useRef<HTMLDivElement>(null);
   const touch = useRef<number | null>(null);
 
@@ -58,8 +60,10 @@ export function DeckViewer({ deck, month, website, contact }: { deck: Deck; mont
     strip.current.scrollTo({ left: el.offsetLeft - strip.current.clientWidth / 2 + el.clientWidth / 2, behavior: "smooth" });
   }, [index]);
 
-  const slide = deck.slides[index];
+  const isSources = hasSources && index === deck.slides.length;
+  const slide = deck.slides[Math.min(index, deck.slides.length - 1)];
   if (!slide) return null;
+  const pages = hasSources ? [...deck.slides, null] : deck.slides;
 
   return (
     <div>
@@ -77,7 +81,7 @@ export function DeckViewer({ deck, month, website, contact }: { deck: Deck; mont
         <ScaledFrame>
           <AnimatePresence initial={false} custom={dir}>
             <motion.div key={index} custom={dir} variants={turn} initial="enter" animate="center" exit="exit" className="absolute inset-0">
-              <Slide deck={deck} slide={slide} index={index} month={month} website={website} contact={contact} />
+              <Slide deck={deck} slide={slide} index={index} month={month} website={website} contact={contact} sources={isSources} />
             </motion.div>
           </AnimatePresence>
         </ScaledFrame>
@@ -92,7 +96,7 @@ export function DeckViewer({ deck, month, website, contact }: { deck: Deck; mont
           <span className="tabular text-ink">
             Slide {index + 1} of {total}
           </span>
-          {slide.kicker && <span className="hidden sm:inline">, {slide.kicker.toLowerCase()}</span>}
+          {isSources ? <span className="hidden sm:inline">, sources</span> : slide.kicker && <span className="hidden sm:inline">, {slide.kicker.toLowerCase()}</span>}
         </p>
         <Button size="sm" onClick={() => go(index + 1)} disabled={index === total - 1} aria-label="Next slide">
           <span className="hidden sm:inline">Next</span>
@@ -101,12 +105,12 @@ export function DeckViewer({ deck, month, website, contact }: { deck: Deck; mont
       </div>
 
       <div ref={strip} className="quiet-scroll relative mt-4 flex gap-2.5 overflow-x-auto pb-2">
-        {deck.slides.map((s, i) => (
+        {pages.map((s, i) => (
           <button
             key={i}
             type="button"
             onClick={() => go(i)}
-            aria-label={`Slide ${i + 1}: ${s.kicker || s.headline}`}
+            aria-label={`Slide ${i + 1}: ${s ? s.kicker || s.headline : "Sources"}`}
             aria-current={i === index}
             className={cn(
               "relative shrink-0 overflow-hidden rounded-[5px] border transition-[border-color,box-shadow,opacity] duration-200",
@@ -114,7 +118,7 @@ export function DeckViewer({ deck, month, website, contact }: { deck: Deck; mont
             )}
           >
             <ScaledFrame width={THUMB_W}>
-              <Slide deck={deck} slide={s} index={i} month={month} website={website} contact={contact} still />
+              <Slide deck={deck} slide={s ?? slide} index={i} month={month} website={website} contact={contact} sources={!s} still />
             </ScaledFrame>
             {i === index && <motion.span layoutId="deck-thumb" className="absolute inset-x-0 bottom-0 h-[3px] bg-vermilion" transition={{ duration: 0.35, ease }} />}
           </button>

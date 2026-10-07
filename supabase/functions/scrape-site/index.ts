@@ -1,5 +1,7 @@
 // Scrapes the founder's homepage with Firecrawl and stores the result on their startup.
-import { admin, HttpError, json, normaliseDomain, readJson, requireUser, secret, serve } from "../_shared/core.ts";
+import { admin, background, HttpError, json, normaliseDomain, readJson, requireUser, secret, serve } from "../_shared/core.ts";
+import { BRAND_FORMATS, captureBrand, type FirecrawlBranding } from "../_shared/brand.ts";
+import { recordSpend } from "../_shared/spend.ts";
 
 interface FirecrawlResponse {
   success: boolean;
@@ -7,6 +9,8 @@ interface FirecrawlResponse {
   data?: {
     markdown?: string;
     summary?: string;
+    branding?: FirecrawlBranding;
+    screenshot?: string;
     metadata?: Record<string, unknown>;
   };
 }
@@ -35,12 +39,15 @@ serve(async (req) => {
     },
     body: JSON.stringify({
       url,
-      formats: ["markdown", "summary"],
+      // Brand and screenshot ride on the same scrape at no extra credit cost.
+      formats: ["markdown", "summary", ...BRAND_FORMATS],
       onlyMainContent: true,
       timeout: 45000,
     }),
   });
   const body = (await res.json()) as FirecrawlResponse;
+  const credits = Number(body.data?.metadata?.creditsUsed ?? (body.success ? 1 : 0));
+  if (credits) await recordSpend({ owner: user.id, feature: "site_scrape" }, { firecrawl_credits: credits });
 
   const faviconFallback = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 
@@ -81,6 +88,10 @@ serve(async (req) => {
       ...(existing?.name ? {} : { name }),
     })
     .eq("owner_id", user.id);
+
+  // Logo, favicon and screenshot downloads happen after the response so onboarding is not held up.
+  await admin.from("startups").update({ brand_status: "running" }).eq("owner_id", user.id);
+  background(captureBrand(user.id, domain, body.data));
 
   return json({ ok: true, domain, name, title, description, favicon, summary: scrape.summary });
 });

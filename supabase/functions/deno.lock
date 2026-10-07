@@ -4,6 +4,7 @@
     "jsr:@std/encoding@1": "1.0.11",
     "npm:@anthropic-ai/sdk@0.128.0": "0.128.0",
     "npm:@pdf-lib/fontkit@1.1.1": "1.1.1",
+    "npm:@resvg/resvg-wasm@2.6.2": "2.6.2",
     "npm:@supabase/supabase-js@2.117.1": "2.117.1",
     "npm:pdf-lib@1.17.1": "1.17.1",
     "npm:roughjs@4.6.6": "4.6.6"
@@ -42,6 +43,9 @@
       "dependencies": [
         "pako"
       ]
+    },
+    "@resvg/resvg-wasm@2.6.2": {
+      "integrity": "sha512-FqALmHI8D4o6lk/LRWDnhw95z5eO+eAa6ORjVg09YRR7BkcM6oPHU9uyC0gtQG5vpFLvgpeU4+zEAz2H8APHNw=="
     },
     "@stablelib/base64@1.0.1": {
       "integrity": "sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ=="

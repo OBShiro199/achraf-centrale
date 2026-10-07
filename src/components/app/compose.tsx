@@ -79,7 +79,7 @@ export function ComposeModal({
           <div className="space-y-2 border-b border-line-2 px-5 py-3 text-[13px]">
             <div className="flex gap-3">
               <span className="w-12 text-label">From</span>
-              <span className="text-ink">{inbox?.address ?? (locked ? "Your inbox is set up when your plan starts" : "Your inbox is still being set up")}</span>
+              <span className="text-ink">{inbox?.address ?? "Your inbox is still being set up"}</span>
             </div>
             <div className="flex gap-3">
               <span className="w-12 text-label">To</span>

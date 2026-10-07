@@ -79,6 +79,7 @@ Wants to hear from: ${(startup.investor_types ?? []).map((v: string) => label(IN
       },
       effort: "low",
       maxTokens: 3000,
+      track: { owner: user.id, feature: "match_keywords" },
     });
     const matchKeywords = [...new Set(picked.keywords.map((k) => k.trim().toLowerCase()))].filter((k) => vocabSet.has(k)).slice(0, 20);
     const country = picked.country.trim() || null;
@@ -146,6 +147,7 @@ About the firm: ${about || "no description"}
       },
       effort: "medium",
       maxTokens: 8000,
+      track: { owner: user.id, feature: "match_shortlist" },
     });
 
     const valid = new Set(candidates.map((c) => c.id));

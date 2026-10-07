@@ -1,11 +1,12 @@
-// Gives a founder their own OpenMail inbox once their plan is paid. Idempotent.
+// Gives a founder their own OpenMail inbox during onboarding, trial included. Idempotent.
+// Sending from it still waits for the paid plan (see send-email and process-outbox).
 import { HttpError, json, requireUser, serve } from "../_shared/core.ts";
-import { hasPaidPlan, provisionInbox } from "../_shared/inbox.ts";
+import { hasStartedPlan, provisionInbox } from "../_shared/inbox.ts";
 
 serve(async (req) => {
   const user = await requireUser(req);
-  if (!(await hasPaidPlan(user.id))) {
-    throw new HttpError(402, "Your sending inbox is set up when your plan starts, after the 7-day trial.");
+  if (!(await hasStartedPlan(user.id))) {
+    throw new HttpError(402, "Start your free trial to get your inbox.");
   }
   const { inbox, created } = await provisionInbox(user);
   return json({ ok: true, inbox, created });

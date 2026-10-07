@@ -33,6 +33,8 @@ serve(async (req) => {
   if (!inbox) return json({ ok: true, ignored: "unknown inbox" });
 
   if (event.event === "inbox.suspended" || event.event === "inbox.reactivated") {
+    // An inbox retired by a domain switch stays retired.
+    if (inbox.status === "retired") return json({ ok: true, ignored: "retired inbox" });
     await admin.from("inboxes").update({ status: event.event === "inbox.suspended" ? "suspended" : "active" }).eq("id", inbox.id);
     return json({ ok: true });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { useApp } from "@/components/app/context";
 import { Button } from "@/components/ui/button";
@@ -174,6 +174,8 @@ export default function SettingsPage() {
         <FollowUps />
       </Settle>
 
+      <RunningCosts />
+
       <Settle delay={240}>
         <Card>
           <CardHeader title="Session" />
@@ -194,5 +196,74 @@ export default function SettingsPage() {
         </Card>
       </Settle>
     </div>
+  );
+}
+
+const FEATURES: Record<string, string> = {
+  deck_research: "Deck research (web search)",
+  deck_write: "Deck writing",
+  site_scrape: "Website scrape",
+  brand_scrape: "Brand refresh",
+  profile: "Profile writing",
+  match_keywords: "Matching keywords",
+  match_shortlist: "Claude picks",
+  email_draft: "Email drafts",
+  follow_up_draft: "Follow-up drafts",
+};
+
+interface Spend {
+  total_usd: number;
+  by_feature: { feature: string; usd: number; calls: number }[];
+  decks: { count: number; avg_usd: number; max_usd: number };
+}
+
+/** Staff only: what Claude and Firecrawl cost across all founders over the last 30 days. Founders get nothing back. */
+function RunningCosts() {
+  const [spend, setSpend] = useState<Spend | null>(null);
+  useEffect(() => {
+    void createClient()
+      .rpc("spend_summary", { p_days: 30 })
+      .then(({ data }) => setSpend((data as Spend | null) ?? null));
+  }, []);
+  if (!spend) return null;
+  const usd = (n: number) => `$${Number(n).toFixed(Number(n) < 1 ? 3 : 2)}`;
+  return (
+    <Settle delay={210}>
+      <Card>
+        <CardHeader
+          title="Running costs"
+          sub="Staff only. Claude and Firecrawl spend across every account in the last 30 days, estimated from usage."
+          action={<Pill tone="burgundy">Staff</Pill>}
+        />
+        <div className="grid gap-4 border-b border-line p-5 sm:grid-cols-3">
+          <div>
+            <p className="text-[12px] text-label">Total</p>
+            <p className="tabular text-[22px] font-semibold tracking-[-0.03em] text-ink">{usd(spend.total_usd)}</p>
+          </div>
+          <div>
+            <p className="text-[12px] text-label">Decks made</p>
+            <p className="tabular text-[22px] font-semibold tracking-[-0.03em] text-ink">{spend.decks.count}</p>
+          </div>
+          <div>
+            <p className="text-[12px] text-label">Average per deck</p>
+            <p className="tabular text-[22px] font-semibold tracking-[-0.03em] text-ink">
+              {usd(spend.decks.avg_usd)}
+              <span className="ml-1.5 text-[12px] font-normal text-label">max {usd(spend.decks.max_usd)}</span>
+            </p>
+          </div>
+        </div>
+        <div className="divide-y divide-line-2">
+          {spend.by_feature.length === 0 && <p className="px-5 py-4 text-[13px] text-muted">Nothing recorded yet.</p>}
+          {spend.by_feature.map((f) => (
+            <div key={f.feature} className="flex items-center justify-between px-5 py-2.5 text-[13px]">
+              <span className="text-body">{FEATURES[f.feature] ?? f.feature}</span>
+              <span className="tabular text-muted">
+                {f.calls} calls, <span className="font-medium text-ink">{usd(f.usd)}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </Settle>
   );
 }

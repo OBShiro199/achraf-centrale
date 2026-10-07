@@ -17,8 +17,22 @@ import type { Startup } from "@/lib/types";
 import { timeAgo } from "@/lib/utils";
 
 const POLL_MS = 4000;
-/** generate-deck normally takes 30 to 90 seconds; past this we offer to start again. */
-const SLOW_MS = 3 * 60 * 1000;
+/** Research plus writing normally takes one to three minutes; past this we offer to start again. */
+const SLOW_MS = 6 * 60 * 1000;
+
+const STAGES: Record<string, string> = {
+  research: "Researching your industry for sourced figures",
+  brand: "Reading your brand from your website",
+  writing: "Writing your slides",
+  rendering: "Rendering the PDF in your brand",
+};
+const stageText = (s: Startup) => STAGES[s.deck_stage ?? "research"] ?? "Drafting your deck";
+
+interface Allowance {
+  used: number;
+  total: number;
+  next_free_at: string | null;
+}
 
 async function fetchStartup(id: string) {
   const { data } = await createClient().from("startups").select("*").eq("id", id).single<Startup>();
@@ -26,7 +40,7 @@ async function fetchStartup(id: string) {
 }
 
 /** A blank slide with a pencil loader, while the first draft is being written. */
-function Drafting() {
+function Drafting({ stage }: { stage: string }) {
   return (
     <div className="graph-paper-faint relative aspect-video w-full overflow-hidden rounded-[8px] border border-line bg-panel">
       <div className="absolute inset-0 grid grid-cols-[1fr_38%] gap-[6%] px-[6%] pb-[9%] pt-[6%]">
@@ -51,7 +65,7 @@ function Drafting() {
       </div>
       <div className="absolute inset-x-0 bottom-0 flex items-center gap-2.5 border-t border-line bg-panel/80 px-4 py-2.5 backdrop-blur-[2px]">
         <BrandMark className="h-4 w-4" pulse />
-        <p className="truncate text-[13px] text-muted">Drafting your deck. About a minute, and you can leave this page.</p>
+        <p className="truncate text-[13px] text-muted">{stage}. One to three minutes, and you can leave this page.</p>
       </div>
     </div>
   );
@@ -65,6 +79,21 @@ export default function DeckPage() {
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState<"generated" | "uploaded" | null>(null);
   const [slow, setSlow] = useState(false);
+  const [allowance, setAllowance] = useState<Allowance | null>(null);
+  const [lastCost, setLastCost] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadMeta = useCallback(async () => {
+    const supabase = createClient();
+    const [{ data: a }, { data: costs }] = await Promise.all([supabase.rpc("deck_allowance"), supabase.rpc("deck_run_costs", { p_limit: 1 })]);
+    if (a) setAllowance(a as Allowance);
+    // Only staff get costs back; founders get null.
+    const latest = (costs as { usd: number; status: string }[] | null)?.find((c) => c.status === "done");
+    setLastCost(latest ? Number(latest.usd) : null);
+  }, []);
+  useEffect(() => {
+    void loadMeta();
+  }, [loadMeta]);
 
   const deck = startup.deck_slides && startup.deck_slides.slides?.length ? startup.deck_slides : null;
   const running = startup.deck_status === "running";
@@ -92,7 +121,14 @@ export default function DeckPage() {
     let live = true;
     const poll = setInterval(async () => {
       const fresh = await fetchStartup(startup.id);
-      if (live && fresh && fresh.deck_status !== "running") setStartup(fresh);
+      if (!live || !fresh) return;
+      setStartup(fresh);
+      if (fresh.deck_status === "done") {
+        toast({ title: "Your deck is ready", body: "Read it through, then download the PDF." });
+        void loadMeta();
+      } else if (fresh.deck_status === "error") {
+        void loadMeta();
+      }
     }, POLL_MS);
     const late = setTimeout(() => live && setSlow(true), SLOW_MS);
     return () => {
@@ -100,23 +136,23 @@ export default function DeckPage() {
       clearInterval(poll);
       clearTimeout(late);
     };
-  }, [running, startup.id, setStartup]);
+  }, [running, startup.id, setStartup, toast, loadMeta]);
 
   const generate = useCallback(
     async (base: Startup) => {
       setSlow(false);
-      setStartup({ ...base, deck_status: "running", deck_error: null });
       try {
-        await callFunction("generate-deck", {});
-        toast({ title: "Your deck is ready", body: "Read it through, then download the PDF." });
+        // Starts the run and returns straight away; polling picks up each stage and the finished deck.
+        await callFunction("generate-deck", { action: "start" });
+        setStartup({ ...base, deck_status: "running", deck_error: null, deck_stage: "research", deck_started_at: new Date().toISOString() });
       } catch (e) {
         toast({ title: "Could not draft the deck", body: e instanceof Error ? e.message : undefined, tone: "error" });
-      } finally {
         const fresh = await fetchStartup(base.id);
         if (fresh) setStartup(fresh);
       }
+      void loadMeta();
     },
-    [setStartup, toast],
+    [setStartup, toast, loadMeta],
   );
 
   async function saveAnswers(redraft: boolean) {
@@ -134,6 +170,27 @@ export default function DeckPage() {
     if (redraft) void generate(data);
     else toast({ title: "Answers saved", body: deck ? "Regenerate the deck to use them." : undefined });
   }
+
+  async function refreshBrand() {
+    setRefreshing(true);
+    try {
+      await callFunction("generate-deck", { action: "brand" });
+      const fresh = await fetchStartup(startup.id);
+      if (fresh) setStartup(fresh);
+      toast({ title: "Brand refreshed", body: deck ? "Regenerate the deck to use it." : undefined });
+    } catch (e) {
+      toast({ title: "Could not refresh your brand", body: e instanceof Error ? e.message : undefined, tone: "error" });
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const outOfRuns = allowance != null && allowance.used >= allowance.total;
+  const runsNote = allowance
+    ? allowance.total === 0
+      ? "Deck generation starts with your trial"
+      : `${allowance.used} of ${allowance.total} deck generations used in the last 30 days`
+    : null;
 
   function editAnswers() {
     setAnswers(startup.deck_inputs ?? {});
@@ -166,15 +223,21 @@ export default function DeckPage() {
           <p className="text-[13.5px] text-muted">
             {deck
               ? `Drafted by Claude from your website${answered ? ` and ${answered} of 5 answers` : " and profile"}${startup.generated_deck_at ? `, ${timeAgo(startup.generated_deck_at)}` : ""}.`
-              : "Eleven slides drafted from your website, your profile and five answers."}
+              : "Slides in your brand, drafted from your website, your profile, five answers and sourced industry research."}
           </p>
+          {(runsNote || lastCost != null) && (
+            <p className="mt-0.5 text-[12px] text-label">
+              {runsNote}
+              {lastCost != null && <span className="ml-2 rounded-[4px] bg-panel-3 px-1.5 py-0.5 font-medium text-muted">Staff: last deck cost ${lastCost.toFixed(2)}</span>}
+            </p>
+          )}
         </div>
         {deck && (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ghost" onClick={editAnswers}>
               <PencilLine className="h-3.5 w-3.5" /> Edit answers
             </Button>
-            <Button size="sm" onClick={() => void generate(startup)} disabled={running}>
+            <Button size="sm" onClick={() => void generate(startup)} disabled={running || outOfRuns}>
               {running ? <BrandMark className="h-3.5 w-3.5" pulse /> : <RefreshCw className="h-3.5 w-3.5" />}
               {running ? "Regenerating" : "Regenerate"}
             </Button>
@@ -203,7 +266,7 @@ export default function DeckPage() {
             <div className="flex flex-wrap items-center gap-3 rounded-[8px] border border-line bg-panel px-4 py-3">
               <BrandMark className="h-4 w-4 shrink-0" pulse />
               <p className="min-w-0 flex-1 text-[13.5px] text-muted">
-                {slow ? "This is taking longer than usual. You can start the draft again." : "Redrafting your deck. The new version replaces this one when it is ready."}
+                {slow ? "This is taking longer than usual. You can start the draft again." : `${stageText(startup)}. The new version replaces this one when it is ready.`}
               </p>
               {slow && (
                 <Button size="sm" onClick={() => void generate(startup)}>
@@ -228,7 +291,7 @@ export default function DeckPage() {
           </Settle>
         ) : running ? (
           <Settle delay={60}>
-            <Drafting />
+            <Drafting stage={stageText(startup)} />
           </Settle>
         ) : (
           <Settle delay={60}>
@@ -237,15 +300,15 @@ export default function DeckPage() {
                 <div>
                   <p className="text-[15px] font-medium text-ink">No drafted deck yet</p>
                   <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">
-                    Answer what you can. Claude writes eleven slides from your answers, your profile and your website, charts the numbers you give, and never
-                    invents metrics.
+                    Answer what you can. Claude researches your industry for sourced figures, then writes the slides in your brand from your answers, your
+                    profile and your website. It charts the numbers you give and never invents metrics.
                   </p>
                   <div className="mt-5 flex flex-col items-start gap-3">
-                    <Button variant="primary" onClick={() => void saveAnswers(true)} disabled={saving}>
+                    <Button variant="primary" onClick={() => void saveAnswers(true)} disabled={saving || outOfRuns}>
                       {saving ? "Saving" : "Draft my deck"}
                     </Button>
                     <Hand className="text-[19px]" tone="pencil" tilt={-3}>
-                      about a minute
+                      one to three minutes
                     </Hand>
                   </div>
                 </div>
@@ -254,6 +317,10 @@ export default function DeckPage() {
             </Card>
           </Settle>
         )}
+
+        <Settle delay={90}>
+          <BrandCard startup={startup} refreshing={refreshing} onRefresh={() => void refreshBrand()} />
+        </Settle>
 
         {(startup.generated_deck_path || startup.deck_path) && (
           <Settle delay={120}>
@@ -315,5 +382,63 @@ export default function DeckPage() {
         </div>
       </Drawer>
     </div>
+  );
+}
+
+/** What the deck is styled with: captured from the founder's homepage, refreshable for one scrape. */
+function BrandCard({ startup, refreshing, onRefresh }: { startup: Startup; refreshing: boolean; onRefresh: () => void }) {
+  const b = startup.brand;
+  const swatches = b ? ([b.colors.primary, b.colors.accent, b.colors.secondary, b.colors.background, b.colors.text].filter(Boolean) as string[]) : [];
+  return (
+    <Card>
+      <CardHeader
+        title="Your brand"
+        sub={b ? `Taken from ${b.source_url.replace(/^https?:\/\//, "")} ${timeAgo(b.captured_at)}. Your deck uses these colours, fonts and images.` : "We read your colours, fonts, logo and a screenshot from your homepage to style your deck."}
+        action={
+          <Button size="sm" variant="ghost" onClick={onRefresh} disabled={refreshing || !startup.domain}>
+            <RefreshCw className={refreshing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> {refreshing ? "Reading your site" : "Refresh brand"}
+          </Button>
+        }
+      />
+      {b ? (
+        <div className="grid gap-5 p-5 md:grid-cols-[1fr_260px]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {b.logo_url && (
+                <span className="flex h-12 items-center rounded-[6px] border border-line px-3" style={{ background: (b.logo_luminance ?? 0) > 0.62 ? "var(--color-night)" : undefined }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={b.logo_url} alt="Logo" className="h-7 max-w-[180px] object-contain" />
+                </span>
+              )}
+              {b.favicon_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={b.favicon_url} alt="Favicon" className="h-8 w-8 rounded-[6px] border border-line bg-panel p-1" />
+              )}
+            </div>
+            {swatches.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {swatches.map((c) => (
+                  <span key={c} className="flex items-center gap-1.5 rounded-[6px] border border-line bg-panel px-2 py-1 font-mono text-[11.5px] text-muted">
+                    <span className="h-3.5 w-3.5 rounded-[3px] border border-line" style={{ background: c }} />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[12.5px] text-muted">
+              Fonts: {[b.fonts.heading, b.fonts.body].filter(Boolean).filter((f, i, a) => a.indexOf(f) === i).join(" and ") || "not detected, we use our own"}
+            </p>
+          </div>
+          {b.screenshot_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={b.screenshot_url} alt="Your homepage" className="w-full rounded-[6px] border border-line" />
+          )}
+        </div>
+      ) : (
+        <p className="px-5 py-4 text-[13px] text-muted">
+          {startup.brand_status === "running" ? "Reading your brand now." : "No brand captured yet. It is captured automatically when your deck is drafted, or press Refresh brand."}
+        </p>
+      )}
+    </Card>
   );
 }

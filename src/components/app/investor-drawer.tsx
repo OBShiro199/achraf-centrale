@@ -330,7 +330,7 @@ export function InvestorDrawerBody({
                 </p>
                 <p className="mt-1 text-[12px] text-label">
                   {trial
-                    ? "Full contact details unlock when your plan starts, after the 7-day trial."
+                    ? "Full contact details show when your plan starts, after the 7-day trial."
                     : "You can email them from Centrale without revealing anything. Revealing uses one credit."}
                 </p>
                 {trial ? (

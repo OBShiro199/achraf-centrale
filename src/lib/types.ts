@@ -51,6 +51,25 @@ export interface Startup {
   match_keywords: string[];
   matches_status: "idle" | "running" | "done" | "error";
   matched_at: string | null;
+  /** Colours, fonts, logo, favicon and homepage screenshot captured from the founder's website. */
+  brand: Brand | null;
+  brand_status: "running" | "done" | "error" | null;
+  /** Where a running deck generation is: brand, research, writing or rendering. */
+  deck_stage: "brand" | "research" | "writing" | "rendering" | null;
+  deck_started_at: string | null;
+}
+
+export interface Brand {
+  color_scheme: "light" | "dark";
+  colors: { primary: string | null; secondary: string | null; accent: string | null; background: string | null; text: string | null };
+  fonts: { heading: string | null; body: string | null };
+  logo_url: string | null;
+  logo_luminance: number | null;
+  logo_size: { width: number; height: number } | null;
+  favicon_url: string | null;
+  screenshot_url: string | null;
+  source_url: string;
+  captured_at: string;
 }
 
 export type DeckQuestionKey = "revenue_history" | "traction" | "raise" | "team" | "competition";
@@ -58,6 +77,7 @@ export type DeckQuestionKey = "revenue_history" | "traction" | "raise" | "team" 
 export const DECK_SLIDE_TYPES = [
   "cover",
   "problem",
+  "market",
   "solution",
   "how_it_works",
   "why_now",
@@ -87,12 +107,71 @@ export interface DeckSlide {
   stat_label: string;
   chart: DeckChart;
   rows: { label: string; detail: string }[];
+  /** Researched industry figures; `n` is the source number shown on the slide. */
+  facts?: DeckFact[];
+}
+
+export interface DeckFact {
+  source_id: string;
+  n: number;
+  value: string;
+  label: string;
+}
+
+export interface DeckSource {
+  n: number;
+  value: string;
+  claim: string;
+  source_title: string;
+  publisher: string;
+  year: string;
+  url: string;
+}
+
+/** Colours and assets the deck is drawn with, worked out from the founder's brand. Absent on older decks. */
+export interface DeckTheme {
+  style: "brand" | "centrale";
+  paper: string;
+  ink: string;
+  display: string;
+  body: string;
+  muted: string;
+  label: string;
+  line: string;
+  accent: string;
+  on_accent: string;
+  cover_bg: string;
+  cover_ink: string;
+  cover_muted: string;
+  logo_url: string | null;
+  /** True when the logo sits on the cover; content slides use the favicon if the logo is too light for paper. */
+  logo_on_cover: boolean;
+  logo_on_paper: boolean;
+  favicon_url: string | null;
+  screenshot_url: string | null;
+  heading_font: string | null;
+  body_font: string | null;
 }
 
 export interface Deck {
   company: string;
   tagline: string;
   slides: DeckSlide[];
+  theme?: DeckTheme;
+  sources?: DeckSource[];
+  industry?: string;
+}
+
+export interface SendingDomain {
+  id: string;
+  domain: string;
+  status: "pending" | "verifying" | "verified" | "failed" | "under_review" | "removed";
+  records: { type: "TXT" | "CNAME" | "MX"; name: string; value: string; priority?: number | null; purpose?: string; status?: "missing" | "invalid" | "valid" }[];
+  warnings: { code: string; message: string; hosts?: string[] }[];
+  message: string | null;
+  verified_at: string | null;
+  checked_at: string | null;
+  created_at: string;
 }
 
 export interface ScheduledEmail {
@@ -119,6 +198,7 @@ export interface Inbox {
   address: string;
   display_name: string | null;
   status: "active" | "suspended" | "retired";
+  domain: string | null;
   created_at: string;
 }
 

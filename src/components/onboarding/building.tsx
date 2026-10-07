@@ -16,7 +16,7 @@ type TaskKey = "read" | "profile" | "inbox" | "investors" | "match" | "deck";
 
 const ease = [0.22, 0.61, 0.21, 1] as const;
 /** Nice-to-haves: if these fail the founder still gets to the dashboard. */
-const OPTIONAL: TaskKey[] = ["investors", "deck"];
+const OPTIONAL: TaskKey[] = ["inbox", "investors", "deck"];
 /** How long to hold the finish for the deck once everything else is done; after that it carries on in the background. */
 const DECK_GRACE_MS = 6000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -107,8 +107,6 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
-  // Trials have no inbox; it is created when the plan starts.
-  const [paid, setPaid] = useState<boolean | null>(null);
   const [fits, setFits] = useState<{ total: number; strong: number } | null>(null);
   const started = useRef(false);
   const deckRun = useRef<Promise<void> | null>(null);
@@ -119,8 +117,9 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const startDeck = useCallback(() => {
     if (!wantsDeck || deckRun.current) return;
     set("deck", "running");
+    // The deck is researched and written in the background; this only starts it.
     deckRun.current = callFunction("generate-deck", {})
-      .then(() => set("deck", "done"))
+      .then(() => set("deck", "background"))
       .catch(() => {
         // Non-fatal: the founder can retry from the deck page, or from Try again here.
         set("deck", "error");
@@ -138,11 +137,10 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
 
       set("profile", "running");
       set("inbox", "running");
-      const { data: canSend } = await supabase.rpc("can_send_email");
-      setPaid(Boolean(canSend));
+      // Every founder gets an inbox during onboarding; sending from it starts with the plan.
       const [profileRes, inboxRes] = await Promise.allSettled([
         callFunction<{ startup: Startup }>("build-profile"),
-        canSend ? callFunction<{ inbox: Inbox }>("provision-inbox") : Promise.resolve({ inbox: null }),
+        callFunction<{ inbox: Inbox }>("provision-inbox"),
       ]);
       if (profileRes.status === "fulfilled") {
         setStartup(profileRes.value.startup);
@@ -173,8 +171,8 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
       setFits({ total, strong });
       set("match", "done");
 
-      const failed = [profileRes, inboxRes].find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-      if (failed) throw failed.reason;
+      // The inbox can be retried from the dashboard, so only the profile blocks finishing.
+      if (profileRes.status === "rejected") throw profileRes.reason;
 
       const { data: userData } = await supabase.auth.getUser();
       await supabase.from("startups").update({ onboarding_completed_at: new Date().toISOString() }).eq("owner_id", userData.user!.id);
@@ -209,7 +207,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const rows: { key: TaskKey; label: string }[] = [
     { key: "read", label: `Reading ${domain}` },
     { key: "profile", label: "Writing your startup profile" },
-    { key: "inbox", label: paid === false ? "Sending inbox: set up when your plan starts" : "Setting up your sending inbox" },
+    { key: "inbox", label: "Setting up your inbox" },
     { key: "investors", label: "Matching you with investors" },
     { key: "match", label: "Scoring investors against your profile" },
     ...(wantsDeck ? [{ key: "deck" as const, label: "Drafting your pitch deck" }] : []),
@@ -279,7 +277,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
                       <ScribbleBurst className="absolute -top-4 right-2 h-4 w-8" immediate delay={0.6} />
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-[13.5px] text-muted">Set up when your plan starts</p>
+                    <p className="mt-0.5 text-[13.5px] text-muted">Finishing on the dashboard</p>
                   )}
                 </div>
                 <div>

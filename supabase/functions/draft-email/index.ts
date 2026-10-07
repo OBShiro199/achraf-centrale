@@ -64,6 +64,7 @@ Values: ${(investor.values ?? []).map((v: string) => label(VALUES, v)).join(", "
     schema: SCHEMA,
     effort: "low",
     maxTokens: 4000,
+    track: { owner: user.id, feature: "email_draft" },
   });
 
   return json({ subject: tidy(draft.subject), body: tidy(draft.body) });

@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
 const n = (x: number) => x.toLocaleString("en-GB");
 
 const INCLUDED = [
-  "Your own sending inbox, 20 new emails a day while it warms up",
+  "Your own inbox on your own domain, 20 new emails a day while it warms up",
   "Claude matching, drafting and automatic follow-ups",
   "2,500 contact reveals and 2,500 export credits a month",
   "The full investor database, no page limit",
-  "AI pitch deck as a PDF",
+  "Researched pitch deck in your brand, 20 a month",
 ];
 
 function Meter({ label, used, total, note }: { label: string; used: number; total: number; note?: string }) {
@@ -132,8 +132,8 @@ export default function BillingPage() {
           )}
           {ent?.status === "trialing" && (
             <p className="mt-5 text-[12.5px] text-label">
-              During the trial you can build your profile and deck and browse investors with contact details truncated. Your sending inbox, sending,
-              reveals and exports start with your plan. To cancel before you are charged, use Manage subscription.
+              During the trial you have your inbox, can connect your domain, build your profile and deck, and browse investors with contact details
+              truncated. Sending, reveals and exports start with your plan. To cancel before you are charged, use Manage subscription.
             </p>
           )}
         </Card>

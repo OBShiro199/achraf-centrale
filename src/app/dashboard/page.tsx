@@ -127,8 +127,8 @@ export default function HomePage() {
     {
       done: Boolean(inbox),
       label: "Inbox ready",
-      note: inbox ? "Sending live" : ent && !ent.paid ? "Starts with your plan" : "Needs setting up",
-      href: ent && !ent.paid ? "/dashboard/billing" : "/dashboard/settings",
+      note: inbox ? (ent && !ent.can_send ? "Sending starts with your plan" : "Sending live") : "Needs setting up",
+      href: inbox ? "/dashboard/domain" : "/dashboard/settings",
     },
     { done: saved >= 3, label: "Save 3 investors", note: `${Math.min(saved, 3)} of 3 saved`, href: "/dashboard/investors" },
     { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors" },
@@ -152,7 +152,9 @@ export default function HomePage() {
               </p>
               <p className="mt-0.5 text-[13px] text-muted">
                 {ent.status === "trialing"
-                  ? "You don't have a sending inbox yet. It's set up the moment your plan starts, along with sending, contact reveals and exports. Until then, build your profile and deck and browse your matches."
+                  ? inbox
+                    ? `Your inbox ${inbox.address} is ready, and you can connect your own domain now. Sending, contact reveals and exports start when your plan starts.`
+                    : "Your inbox is being set up. Sending, contact reveals and exports start when your plan starts. Until then, build your profile and deck, connect your domain and browse your matches."
                   : "Start your plan to get your sending inbox and email investors. Your profile and deck are saved."}
               </p>
             </div>

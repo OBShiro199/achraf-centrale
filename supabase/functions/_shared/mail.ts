@@ -1,4 +1,4 @@
-import { secret, SUPABASE_URL } from "./core.ts";
+import { HttpError, secret, SUPABASE_URL } from "./core.ts";
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -21,20 +21,17 @@ export { escapeHtml };
 const DEFAULT_TEST_RECIPIENT = "oliverburt3+centraletest@gmail.com";
 
 /**
- * Test mode. Investors synced from the real directory only receive email once the Vault secret
- * OUTREACH_LIVE is "true". Until then every send goes to one test inbox with a note saying who it
- * was for, so testing can never reach a real investor.
+ * Test mode. Directory investors only receive email once the Vault secret OUTREACH_LIVE is "true".
+ * Until then every send goes to one test inbox with a note saying who it was for, so testing can
+ * never reach a real investor.
  */
-export async function resolveRecipient(investor: { email: string; full_name: string; source?: string | null }, _ownerId: string) {
+export async function resolveRecipient(investor: { email: string | null; full_name: string }, _ownerId: string) {
+  if (!investor.email) throw new HttpError(422, `We do not have an email address for ${investor.full_name}.`);
   const to = (await secret("OUTREACH_TEST_RECIPIENT").catch(() => DEFAULT_TEST_RECIPIENT)).trim() || DEFAULT_TEST_RECIPIENT;
-  // The reply-testing contact already points at the test inbox.
-  if (investor.source === "test") return { to: investor.email, test: false };
-  // Old demo investors have made-up addresses: always the test inbox.
-  if (investor.source !== "contacts") return { to, test: true };
   const live = await secret("OUTREACH_LIVE").then((v) => v.trim().toLowerCase() === "true").catch(() => false);
   return live ? { to: investor.email, test: false } : { to, test: true };
 }
 
-export function withTestNote(body: string, investor: { email: string; full_name: string }) {
+export function withTestNote(body: string, investor: { email: string | null; full_name: string }) {
   return `Test mode: this email is addressed to ${investor.full_name} <${investor.email}>. Centrale sent it to the test inbox instead, because live sending to real investors is off.\n\n${body}`;
 }

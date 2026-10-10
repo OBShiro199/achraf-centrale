@@ -20,6 +20,8 @@ const OPTIONAL: TaskKey[] = ["inbox", "investors", "deck"];
 /** How long to hold the finish for the deck once everything else is done; after that it carries on in the background. */
 const DECK_GRACE_MS = 6000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** count_investors stops at 10,001, which means 10,000+. */
+const fitCount = (n: number) => (n > 10000 ? "10,000+" : n.toLocaleString("en-GB"));
 
 function StateIcon({ state }: { state: TaskState }) {
   if (state === "done") return <ScribbleTick className="h-5 w-5" immediate />;
@@ -107,7 +109,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
-  const [fits, setFits] = useState<{ total: number; strong: number } | null>(null);
+  const [fits, setFits] = useState<{ total: number | null; strong: number | null } | null>(null);
   const started = useRef(false);
   const deckRun = useRef<Promise<void> | null>(null);
 
@@ -162,12 +164,10 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
       }
 
       set("match", "running");
-      // Totals only: one row each, the count comes back with it.
+      // Counts stop at 10,001 (shown as 10,000+) and come back null if they took too long.
       const count = (filters: Record<string, unknown>) =>
-        supabase
-          .rpc("search_investors", { p_filters: filters, p_sort: "match", p_dir: "desc", p_limit: 1, p_offset: 0 })
-          .then(({ data }) => (data as { total?: number } | null)?.total ?? 0);
-      const [total, strong] = await Promise.all([count({}), count({ min_score: 60 })]);
+        supabase.rpc("count_investors", { p_filters: filters }).then(({ data }) => (data as number | null) ?? null);
+      const [total, strong] = await Promise.all([count({}), count({ minScore: 60 })]);
       setFits({ total, strong });
       set("match", "done");
 
@@ -283,7 +283,9 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
                 <div>
                   <p className="text-[12px] text-label">Investors scored</p>
                   <p className="mt-0.5 text-[13.5px] font-medium text-ink">
-                    {fits?.total} scored, {fits?.strong} strong fits
+                    {fits && fits.total != null
+                      ? `${fitCount(fits.total)} scored${fits.strong != null ? `, ${fitCount(fits.strong)} strong fits` : ""}`
+                      : "Scored and ready"}
                   </p>
                 </div>
                 {wantsDeck && (

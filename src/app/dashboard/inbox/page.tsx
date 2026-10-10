@@ -17,7 +17,7 @@ interface ThreadDetail {
   id: string;
   subject: string;
   isRead: boolean;
-  investor: { id: string; full_name: string; firm: string; email: string } | null;
+  investor: { id: number; full_name: string; firm: string; email: string | null } | null;
   messages: ThreadMessage[];
 }
 

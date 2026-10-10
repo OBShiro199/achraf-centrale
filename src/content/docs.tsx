@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-07";
+export const DOCS_UPDATED = "2026-10-09";
 
 export const DOCS: DocSection[] = [
   {
@@ -172,46 +172,77 @@ export const DOCS: DocSection[] = [
   {
     id: "investor-database",
     title: "Investor database",
-    summary: "Where the data comes from, how search and filters combine, sorting and pages.",
+    summary: "Where the data comes from, search, filters, AI search, saved searches, sorting and pages.",
     body: (
       <>
         <H3>Where the data comes from</H3>
         <P>
-          The database is a curated list of investors. Every investor in it has an email address and a LinkedIn profile; people without both are left
-          out. Duplicates are merged by email address, so one person appears once even if they show up in several sources.
+          The database holds about 335,000 investors: partners, angels, principals and associates at venture firms, angel groups, accelerators, family
+          offices and private equity firms worldwide. Each one has an email address, a LinkedIn profile, or both. For each investor you see their job
+          title, firm, firm industry, firm size, the year the firm was founded, location, the stages and sectors the firm is tagged with, the firm&apos;s
+          specialties and its own description.
         </P>
-        <H3>Search</H3>
         <P>
-          Type in the search box above the table. Every word you type must match something about the investor: their name, firm, firm domain, city,
-          country or one of their keywords. <Code>fintech london</Code> finds fintech investors in London, not everyone who matches either word.
+          About 4 in 10 investors have an email address on file. Add the <B>Email: Has email</B> filter to see only investors you can write to; investors
+          without one can still be saved, and the Email button is off for them.
         </P>
+        <H3>Search box</H3>
+        <P>
+          Type in the search box above the table. Every word must match the investor&apos;s name, job title, firm, firm domain, city or country.{" "}
+          <Code>capital london</Code> finds people at firms with capital in the name who are based in London.
+        </P>
+        <H3>Filters</H3>
+        <P>
+          Filters sit as chips above the table. Press <B>Add filter</B>, pick a filter, then choose its values. Click a chip to change it, or its cross to
+          remove it. <B>Clear all</B> removes every filter.
+        </P>
+        <Table
+          head={["Group", "Filters"]}
+          rows={[
+            ["Person", "Job title, exclude titles, role, name"],
+            ["Firm", "Firm name, exclude firms, firm industry, exclude industries, firm size, year founded, firm description"],
+            ["Thesis", "Stage, exclude stages, sector focus, exclude sectors, specialties"],
+            ["Location", "Region, country, exclude countries, state or county, city"],
+            ["Contact data", "Email, phone, LinkedIn on file"],
+            ["Your activity", "Outreach status, saved, Claude picks, fit score, one per firm"],
+          ]}
+        />
         <H3>How filters combine</H3>
         <Bullets
           items={[
-            <><B>Across different filter groups, filters combine with AND.</B> Seed stage and Fintech sector means investors who do seed and fintech.</>,
-            <><B>Within one group, options combine with OR.</B> Seed and Series A means investors who do either.</>,
-            <><B>Location is one group.</B> Regions, countries and cities you tick all count together, so any ticked place matches.</>,
-            <><B>Keywords</B> can be set to <B>Match any keyword</B> or <B>Match every keyword</B>.</>,
-            <><B>Excluded keywords never match.</B> An investor with any excluded keyword is left out, whatever else they match.</>,
-            <><B>Contact data</B> filters (phone numbers, LinkedIn, X, firm website) require every ticked item. Every investor already has an email.</>,
-            <><B>Type, Stage, Sector, Role, Values, Firm size and Firm raised</B> are each one group. <B>Founded</B> limits the year the firm was founded.</>,
-            <><B>Status</B>: new, queued, contacted, opened, replied or no reply yet.</>,
-            <><B>Saved</B> shows only investors you saved. <B>Claude picks</B> shows only your shortlist.</>,
-            <>Under <B>Fit</B>, a <B>minimum fit score</B> hides anyone below the score you set, and <B>one per firm</B> keeps the best-fit person at each firm.</>,
+            <><B>Different filters combine with AND.</B> Stage Seed and Sector focus FinTech means investors tagged with both.</>,
+            <><B>Values inside one filter combine with OR.</B> Stage Seed and Pre-Seed means investors tagged with either.</>,
+            <><B>Location filters count as one group.</B> Region, country, state and city together match any of the places you chose.</>,
+            <><B>Exclude filters never match.</B> Exclude stages Buyout/PE leaves out every investor tagged with it, whatever else they match.</>,
+            <><B>Text filters</B> (job title, name, firm name, firm description, specialties, city) match when the field contains any of your words, ignoring case.</>,
+            <><B>Job titles</B> also find their short or long forms: MD finds managing director, GP finds general partner, VP finds vice president.</>,
+            <><B>One per firm</B> keeps the best-fit person at each firm.</>,
           ]}
         />
+        <H3>Search with AI</H3>
         <P>
-          The number beside each option already accounts for every other active filter, so it tells you exactly how many investors you would see if you
-          ticked it.
+          Describe the investors you want in a sentence, for example <Code>Seed fintech partners in London I can email</Code>. Claude turns it into
+          ordinary filters, which appear as chips you can change like any other. Claude never sees or searches the database itself; it only proposes
+          filters, and every one is checked against the real values before the search runs.
         </P>
-        <Callout title="Investor relations and LPs are hidden by default">
-          They do not write cheques. Tick them under Role if you want to see them.
-        </Callout>
-        <H3>Sorting and pages</H3>
+        <Bullets
+          items={[
+            <>A banner shows the search&apos;s name, your request, a one-line summary and anything the filters could not express, under <B>Not covered</B>.</>,
+            <>The database has no cheque sizes, fund sizes, portfolio companies or founder demographics. Requests that need them are matched as closely as the data allows and the gap is noted.</>,
+            <>Your recent AI searches appear under the box and reopen without running again.</>,
+            <>You can run 30 AI searches an hour and 150 a day.</>,
+          ]}
+        />
+        <H3>Saved searches</H3>
         <P>
-          Results sort by fit score unless you choose another column: name, firm, location, firm size, firm funding, year founded or Claude picks. Pages
-          hold 25, 50 or 100 rows; the trial allows up to 50 a page and 500 rows in total. Your filters, sort and page size are kept while this tab
-          is open.
+          Press <B>Save search</B> to keep the current filters and search text under a name. Open them again from <B>Saved searches</B>. While a saved search
+          is open, Save offers to update it or save a new one.
+        </P>
+        <H3>Sorting, counts and pages</H3>
+        <P>
+          Results sort by fit score unless you choose name, firm, location, firm size, year founded or Claude picks order. Each page holds 50 rows. The
+          count above the table is exact up to 10,000 and shows 10,000+ beyond that. You can page through the first 10,000 results of any search; the
+          trial shows the first 500. Your filters, search and sort are kept while this tab is open.
         </P>
       </>
     ),
@@ -230,28 +261,27 @@ export const DOCS: DocSection[] = [
         <Table
           head={["Signal", "Points"]}
           rows={[
-            ["Sector", "25 if the investor lists one of your sectors"],
-            ["Keywords", "Up to 25: 6 per rare keyword you share, 3 per common one"],
+            ["Sector", "30 if the firm is tagged with one of your sectors"],
+            ["Specialties", "Up to 20: 5 for each of your match keywords in the firm's specialties"],
             ["Stage", "15 if they invest at your round; 5 if their stages are unknown"],
-            ["Investor type", "10 if it is a type you asked for; 5 if you have no preference"],
+            ["Investor type", "10 if they are a type you asked for; 5 if you have no preference"],
             ["Location", "10 if they are in your country, or 5 if they are in your region"],
-            ["Values", "5 if they share one of your values"],
-            ["Role", "Partner or angel 10, principal 8, venture partner 5, associate 4, investor relations or LP minus 20"],
-            ["Private equity", "Minus 20 when you are raising pre-seed, seed, angel or Series A"],
+            ["Role", "Partner or angel 10, principal 8, venture partner 5, associate 4, platform 2, investor relations or LP minus 20"],
+            ["Email on file", "5"],
+            ["Private equity", "Minus 20 when you are raising pre-seed, seed, angel or Series A and the firm only does buyout, fund of funds, late stage or venture debt"],
           ]}
-          caption="A keyword is rare when 3% of investors or fewer list it. Keywords listed by more than a quarter of investors do not score."
         />
         <H3>Claude picks</H3>
         <Steps
           items={[
-            { title: "Claude chooses your match keywords", body: "8 to 20 keywords, taken only from the words investors in the database actually use, most specific first." },
+            { title: "Claude chooses your match keywords", body: "8 to 20 keywords, taken only from the specialties investors in the database actually list, most specific first." },
             { title: "The database scores everyone", body: "Every investor gets a fit score with those keywords, and the top 60 are kept, one per firm." },
             { title: "Claude shortlists 25", body: "Claude reads those 60 firms and keeps up to 25 that would plausibly invest at your stage, each with a one-line reason drawn from the investor's own data." },
           ]}
         />
         <P>
-          Press <B>Refresh Claude picks</B> on the Investors page to run all three steps again, for example after you change your round or sectors. Turn on
-          the Claude picks filter to see only your shortlist.
+          Press <B>Refresh Claude picks</B> on the Investors page to run all three steps again, for example after you change your round or sectors. Add the
+          Claude picks filter to see only your shortlist.
         </P>
       </>
     ),
@@ -265,12 +295,12 @@ export const DOCS: DocSection[] = [
       <>
         <P>
           Emails and phone numbers show truncated until you reveal them, for example <Code>j•••@firm.com</Code> and <Code>+1 201-•••-••••</Code>.
-          LinkedIn and X links appear once revealed.
+          LinkedIn profiles and other email addresses appear once revealed. The full details never reach your browser before then.
         </P>
         <Bullets
           items={[
             <><B>Reveal.</B> Revealing an investor spends one reveal credit and shows their full details. The investor stays revealed for you, so you never pay twice for the same person.</>,
-            <><B>Export.</B> Exports spend one export credit per row and every export is logged. Rows you already revealed or exported cost nothing. One export holds up to 1,000 rows and stops where your credits run out.</>,
+            <><B>Export.</B> Exports spend one export credit per row and every export is logged. Rows you already revealed or exported cost nothing. One export holds up to 500 rows and stops where your credits run out. You confirm the cost before anything is charged.</>,
             <><B>Allowance.</B> The plan includes 2,500 reveals and 2,500 export credits a month, resetting at the start of each billing period. The trial has 0 of each.</>,
           ]}
         />
@@ -283,6 +313,7 @@ export const DOCS: DocSection[] = [
           rows={[
             ["Searches a minute", "40", "120"],
             ["Investor rows viewed a day", "1,500", "50,000"],
+            ["AI searches", "30 an hour, 150 a day", "30 an hour, 150 a day"],
           ]}
           caption="The daily count resets at midnight UTC."
         />
@@ -575,7 +606,7 @@ export const DOCS: DocSection[] = [
           },
           {
             q: "How are investors matched?",
-            a: "Every investor gets a fit score from 0 to 100 from your sector, keywords, stage, investor type, location, values and their role. Claude then reads the top 60 firms and shortlists 25.",
+            a: "Every investor gets a fit score from 0 to 100 from your sectors, their specialties, your stage, investor type, location and their role. Claude then reads the top 60 firms and shortlists 25.",
           },
           {
             q: "Why did my email not send today?",
@@ -601,6 +632,15 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-10-09",
+            items: [
+              "A new investor database of about 335,000 investors, with firm industry, size, founding year, stages, sectors, specialties and descriptions.",
+              "Filters are now chips above the table, with 31 filters including exclusions, and every one stacks with the others.",
+              "Search with AI: describe the investors you want and get editable filters.",
+              "Saved searches.",
+            ],
+          },
           {
             date: "2026-10-07",
             items: [

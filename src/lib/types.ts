@@ -177,7 +177,8 @@ export interface SendingDomain {
 export interface ScheduledEmail {
   id: string;
   owner_id: string;
-  investor_id: string;
+  /** investors_achraf id */
+  investor_id: number;
   kind: "first" | "follow_up";
   parent_message_id: string | null;
   thread_id: string | null;
@@ -202,38 +203,24 @@ export interface Inbox {
   created_at: string;
 }
 
+/** An investor from the directory (public.investors_achraf). Contact details may be masked. */
 export interface Investor {
-  id: string;
+  id: number;
   full_name: string;
   title: string | null;
   firm: string;
-  email: string;
-  phone: string | null;
-  location: string | null;
-  investor_type: string;
-  stages: string[];
-  sectors: string[];
-  check_min_usd: number | null;
-  check_max_usd: number | null;
-  fund_size_usd: number | null;
-  portfolio: string[];
-  thesis: string | null;
-  values: string[];
-  focus_note: string | null;
-  leads_rounds: boolean;
-  min_revenue_band: string | null;
-  website_url: string | null;
+  email: string | null;
 }
 
 export interface Match {
-  investor_id: string;
+  investor_id: number;
   score: number;
   reasons: string[];
 }
 
 export interface OutreachMessage {
   id: string;
-  investor_id: string | null;
+  investor_id: number | null;
   direction: "outbound" | "inbound";
   kind: "first" | "reply" | "follow_up";
   openmail_thread_id: string | null;
@@ -263,7 +250,7 @@ export interface ThreadSummary {
   isRead: boolean;
   lastMessageAt: string;
   messageCount: number;
-  investor: { id: string; full_name: string; firm: string } | null;
+  investor: { id: number; full_name: string; firm: string } | null;
   /** Latest inbound sender, for threads not linked to an investor. */
   sender: string | null;
 }

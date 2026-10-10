@@ -45,9 +45,9 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
   const [queueing, setQueueing] = useState(false);
   const run = useRef(0);
 
-  const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => d.map((x) => (x.row.id === id ? { ...x, ...p } : x)));
+  const patch = (id: number, p: Partial<Draft>) => setDrafts((d) => d.map((x) => (x.row.id === id ? { ...x, ...p } : x)));
 
-  async function draftOne(id: string, runId: number) {
+  async function draftOne(id: number, runId: number) {
     patch(id, { state: "drafting", note: undefined });
     try {
       const d = await callFunction<{ subject: string; body: string }>("draft-email", { investor_id: id });
@@ -61,7 +61,7 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
     if (!open) return;
     const runId = ++run.current;
     const list: Draft[] = rows.slice(0, BATCH_LIMIT).map((row) => {
-      const skip = row.contacted ? "Already contacted" : row.queued ? "Already queued" : null;
+      const skip = !row.has_email ? "No email on file" : row.contacted ? "Already contacted" : row.queued ? "Already queued" : null;
       return { row, state: skip ? "skipped" : "waiting", subject: "", body: "", note: skip ?? undefined, include: !skip };
     });
     setDrafts(list);
@@ -83,6 +83,7 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
   const ready = drafts.filter((d) => d.state === "ready" && d.include);
   const pending = drafts.filter((d) => d.state === "waiting" || d.state === "drafting").length;
   const current = drafts[active];
+  const noEmail = drafts.filter((d) => !d.row.has_email).length;
 
   async function queue() {
     setQueueing(true);
@@ -194,7 +195,9 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
               </div>
             ) : current.state === "skipped" ? (
               <p className="m-auto max-w-[320px] text-center text-[13.5px] text-label">
-                {current.note}. Follow-ups for people you have emailed are drafted automatically after a few days without a reply.
+                {current.row.has_email
+                  ? `${current.note}. Follow-ups for people you have emailed are drafted automatically after a few days without a reply.`
+                  : "There is no email on file for this investor, so they are left out of this batch."}
               </p>
             ) : (
               <div className="m-auto text-center">
@@ -213,6 +216,7 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
             : inbox
               ? "Queued emails send from your inbox, up to 20 new emails a day. Anything over rolls to the next morning."
               : "Your inbox is not set up yet. Emails will wait in the Outbox until it is."}
+          {noEmail > 0 && ` ${noEmail} without an email on file ${noEmail === 1 ? "is" : "are"} skipped.`}
           {pending > 0 && ` Drafting ${pending} more.`}
         </p>
         <div className="flex items-center gap-2">

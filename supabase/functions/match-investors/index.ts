@@ -1,8 +1,8 @@
 // Matches a founder with investors from the directory in three steps:
 // 1. Claude reads the startup profile and picks the investor-side keywords that fit it, choosing only
 //    from the directory's own vocabulary, so every term is one real investors actually list.
-// 2. The database scores every investor (sector, stage, keyword overlap weighted by rarity, type,
-//    location, values, seniority) and returns the best 60, one person per firm.
+// 2. The database scores every investor (sector focus, stage, specialty overlap, type, location, role)
+//    and returns the best 60, one person per firm.
 // 3. Claude reads those 60 firms and keeps the 25 that genuinely fit, with one sentence each on why.
 import { admin, HttpError, json, requireUser, serve, userClient } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
@@ -13,17 +13,19 @@ const CANDIDATES = 60;
 const PICKS = 25;
 
 interface Candidate {
-  id: string;
+  id: number;
   full_name: string;
   title: string | null;
+  headline: string | null;
   role: string;
   firm: string;
   investor_type: string;
   stages: string[];
-  sectors: string[];
+  focus: string[];
+  industry: string | null;
   country: string | null;
   city: string | null;
-  firm_employees: number | null;
+  size: string | null;
   score: number;
   reasons: string[];
 }
@@ -53,16 +55,16 @@ Wants to hear from: ${(startup.investor_types ?? []).map((v: string) => label(IN
 </startup>`;
 
     // Step 1: pick match keywords from the words investors in the directory actually use.
-    const { count: total } = await admin.from("investors").select("id", { count: "exact", head: true }).eq("active", true);
-    const { data: vocabRows, error: vocabError } = await admin
-      .from("investor_keywords")
-      .select("keyword")
-      .gte("df", 5)
-      .lte("df", Math.max(50, Math.floor((total ?? 10_000) * 0.2)))
-      .order("df", { ascending: false })
-      .limit(VOCAB_SIZE);
-    if (vocabError) throw vocabError;
-    const vocab = (vocabRows ?? []).map((r) => r.keyword as string);
+    const [{ data: facets, error: facetError }, { data: total }] = await Promise.all([
+      userClient(req).rpc("lead_facets"),
+      userClient(req).rpc("directory_size"),
+    ]);
+    if (facetError) throw facetError;
+    const maxDf = Math.max(50, Math.floor(Number(total ?? 300_000) * 0.2));
+    const vocab = (((facets as Record<string, { value: string; n: number }[]>)?.specialty ?? []) as { value: string; n: number }[])
+      .filter((k) => k.n >= 5 && k.n <= maxDf)
+      .slice(0, VOCAB_SIZE)
+      .map((k) => k.value);
     const vocabSet = new Set(vocab);
 
     const picked = await structured<{ keywords: string[]; country: string }>({
@@ -87,7 +89,7 @@ Wants to hear from: ${(startup.investor_types ?? []).map((v: string) => label(IN
 
     // Step 2: the database scores the whole directory with the new keywords.
     const { data: page, error: searchError } = await userClient(req).rpc("search_investors", {
-      p_filters: { one_per_firm: true },
+      p_filters: { onePerFirm: true },
       p_sort: "match",
       p_dir: "desc",
       p_limit: CANDIDATES,
@@ -102,21 +104,23 @@ Wants to hear from: ${(startup.investor_types ?? []).map((v: string) => label(IN
     }
 
     const { data: details } = await admin
-      .from("investors")
-      .select("id, keywords, firm_description, thesis")
+      .from("investors_achraf")
+      .select("id, specialties, firm_about")
       .in("id", candidates.map((c) => c.id));
-    const byId = new Map((details ?? []).map((d) => [d.id as string, d]));
+    const byId = new Map((details ?? []).map((d) => [Number(d.id), d]));
 
     // Step 3: Claude reads each firm and keeps the ones that genuinely fit.
     const list = candidates
       .map((c, i) => {
         const d = byId.get(c.id);
-        const about = (d?.firm_description ?? d?.thesis ?? "").replace(/\s+/g, " ").slice(0, 420);
+        const about = (d?.firm_about ?? "").replace(/\s+/g, " ").slice(0, 420);
+        const specialties = String(d?.specialties ?? "").split(";").map((s) => s.trim()).filter(Boolean).slice(0, 25);
         return `<investor n="${i + 1}" id="${c.id}">
 ${c.full_name}, ${c.title ?? label(ROLES, c.role)} at ${c.firm} (${label(INVESTOR_TYPES, c.investor_type)}, ${[c.city, c.country].filter(Boolean).join(", ") || "location unknown"})
-Stages: ${c.stages.map((s) => label(STAGES, s)).join(", ") || "not stated"}
-Sectors: ${c.sectors.map((s) => label(SECTORS, s)).join(", ") || "not stated"}
-Focus keywords: ${((d?.keywords as string[] | undefined) ?? []).slice(0, 25).join(", ")}
+Stages: ${c.stages.join(", ") || "not stated"}
+Sector focus: ${c.focus.join(", ") || "not stated"}
+Firm industry: ${c.industry ?? "not stated"}
+Specialties: ${specialties.join(", ")}
 About the firm: ${about || "no description"}
 </investor>`;
       })
@@ -151,8 +155,9 @@ About the firm: ${about || "no description"}
     });
 
     const valid = new Set(candidates.map((c) => c.id));
-    const seen = new Set<string>();
+    const seen = new Set<number>();
     const picks = ranked.picks
+      .map((p) => ({ ...p, id: Number(p.id) }))
       .filter((p) => valid.has(p.id) && !seen.has(p.id) && seen.add(p.id))
       .slice(0, PICKS)
       .map((p, i) => ({

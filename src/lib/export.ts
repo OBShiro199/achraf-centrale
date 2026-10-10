@@ -1,12 +1,9 @@
-import { formatFunding, reasonLabel, type DirectoryRow } from "@/lib/directory";
-import { INVESTOR_TYPES, label, REGIONS, ROLES, SECTORS, STAGES, VALUES } from "@/lib/taxonomy";
+import type { DirectoryRow } from "@/lib/directory";
 
 export type ExportFormat = "csv" | "md" | "json";
 
 type Value = string | number | boolean | string[] | null;
 type Row = DirectoryRow;
-
-const status = (r: Row) => (r.replied ? "Replied" : r.opened ? "Opened" : r.contacted ? "Contacted" : r.queued ? "Queued" : "Not contacted");
 
 /** One list of fields drives every format. JSON keeps arrays and numbers; CSV and Markdown flatten them. */
 const FIELDS: { key: string; header: string; get: (r: Row) => Value }[] = [
@@ -14,33 +11,22 @@ const FIELDS: { key: string; header: string; get: (r: Row) => Value }[] = [
   { key: "first_name", header: "First name", get: (r) => r.first_name },
   { key: "last_name", header: "Last name", get: (r) => r.last_name },
   { key: "title", header: "Title", get: (r) => r.title },
-  { key: "role", header: "Role", get: (r) => label(ROLES, r.role) },
   { key: "firm", header: "Firm", get: (r) => r.firm },
+  { key: "firm_website", header: "Firm website", get: (r) => r.firm_website },
   { key: "firm_domain", header: "Firm domain", get: (r) => r.firm_domain },
-  { key: "email", header: "Email", get: (r) => r.email },
-  { key: "mobile", header: "Mobile", get: (r) => r.mobile },
-  { key: "direct_phone", header: "Direct line", get: (r) => r.direct_phone },
-  { key: "do_not_call", header: "Do not call", get: (r) => r.do_not_call },
-  { key: "linkedin", header: "LinkedIn", get: (r) => r.linkedin_url },
-  { key: "x", header: "X", get: (r) => r.twitter_url },
-  { key: "website", header: "Website", get: (r) => r.website_url },
+  { key: "industry", header: "Industry", get: (r) => r.industry },
+  // "11-50" on its own opens in Excel as a date, so it carries its unit.
+  { key: "firm_size", header: "Firm size", get: (r) => (r.size ? `${r.size} people` : null) },
+  { key: "founded", header: "Founded", get: (r) => r.founded },
   { key: "city", header: "City", get: (r) => r.city },
   { key: "state", header: "State", get: (r) => r.state },
   { key: "country", header: "Country", get: (r) => r.country },
-  { key: "region", header: "Region", get: (r) => (r.region ? label(REGIONS, r.region) : null) },
-  { key: "type", header: "Type", get: (r) => label(INVESTOR_TYPES, r.investor_type) },
-  { key: "stages", header: "Stages", get: (r) => r.stages.map((s) => label(STAGES, s)) },
-  { key: "sectors", header: "Sectors", get: (r) => r.sectors.map((s) => label(SECTORS, s)) },
-  { key: "values", header: "Values", get: (r) => r.values.map((v) => label(VALUES, v)) },
-  { key: "firm_size", header: "Firm size", get: (r) => r.firm_employees },
-  { key: "firm_raised_usd", header: "Firm raised (USD)", get: (r) => r.firm_funding },
-  { key: "firm_raised", header: "Firm raised", get: (r) => formatFunding(r.firm_funding) },
-  { key: "firm_founded", header: "Firm founded", get: (r) => r.firm_founded },
+  { key: "stages", header: "Stages", get: (r) => r.stages },
+  { key: "sector_focus", header: "Sector focus", get: (r) => r.focus },
+  { key: "email", header: "Email", get: (r) => r.email },
+  { key: "phone", header: "Phone", get: (r) => r.phone },
+  { key: "linkedin", header: "LinkedIn", get: (r) => r.linkedin_url },
   { key: "fit_score", header: "Fit score", get: (r) => r.score },
-  { key: "fit_reasons", header: "Fit reasons", get: (r) => r.reasons.map(reasonLabel) },
-  { key: "claude_pick", header: "Claude pick", get: (r) => r.pick_why },
-  { key: "saved", header: "Saved", get: (r) => r.saved },
-  { key: "status", header: "Status", get: status },
 ];
 
 function flat(v: Value): string {

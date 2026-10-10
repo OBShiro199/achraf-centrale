@@ -5,6 +5,7 @@ import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
+import { loadInvestor } from "../_shared/investor.ts";
 
 const DAILY_CAP = 20;
 const PER_RUN_PER_INBOX = 8;
@@ -13,7 +14,7 @@ const PLAN_PER_RUN = 5;
 interface Scheduled {
   id: string;
   owner_id: string;
-  investor_id: string;
+  investor_id: number;
   kind: "first" | "follow_up";
   parent_message_id: string | null;
   thread_id: string | null;
@@ -34,7 +35,7 @@ const tomorrowMorning = (offsetMinutes: number) => {
   return d.toISOString();
 };
 
-async function hasReplied(ownerId: string, investorId: string, threadId: string | null) {
+async function hasReplied(ownerId: string, investorId: number, threadId: string | null) {
   let q = admin.from("outreach_messages").select("id").eq("owner_id", ownerId).eq("direction", "inbound");
   q = threadId ? q.or(`openmail_thread_id.eq.${threadId},investor_id.eq.${investorId}`) : q.eq("investor_id", investorId);
   const { data } = await q.limit(1);
@@ -48,8 +49,8 @@ async function planFollowUps(dryRun: boolean) {
   const planned: { investor: string; send_after: string; body: string }[] = [];
 
   for (const c of candidates ?? []) {
-    const [{ data: investor }, { data: profile }, { data: startup }] = await Promise.all([
-      admin.from("investors").select("full_name, firm").eq("id", c.investor_id).single(),
+    const [investor, { data: profile }, { data: startup }] = await Promise.all([
+      loadInvestor(Number(c.investor_id)).catch(() => null),
       admin.from("profiles").select("first_name").eq("id", c.owner_id).single(),
       admin.from("startups").select("name, one_liner, traction").eq("owner_id", c.owner_id).single(),
     ]);
@@ -144,9 +145,9 @@ async function sendDue() {
       continue;
     }
 
-    const { data: investor } = await admin.from("investors").select("id, email, full_name, source").eq("id", e.investor_id).single();
-    if (!investor) {
-      await admin.from("scheduled_emails").update({ status: "failed", last_error: "Investor no longer exists" }).eq("id", e.id);
+    const investor = await loadInvestor(Number(e.investor_id)).catch(() => null);
+    if (!investor || !investor.email) {
+      await admin.from("scheduled_emails").update({ status: "failed", last_error: investor ? "No email address for this investor" : "Investor no longer exists" }).eq("id", e.id);
       continue;
     }
 

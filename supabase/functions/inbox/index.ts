@@ -53,7 +53,7 @@ serve(async (req) => {
       const { data: rows } = ids.length
         ? await admin
           .from("outreach_messages")
-          .select("openmail_thread_id, direction, from_addr, investor:investors(id, full_name, firm)")
+          .select("openmail_thread_id, direction, from_addr, investor:investors_achraf(id, full_name, firm)")
           .eq("owner_id", user.id)
           .in("openmail_thread_id", ids)
           .order("sent_at", { ascending: false })
@@ -78,7 +78,7 @@ serve(async (req) => {
       const thread = await loadThread(input.thread_id);
       const { data: link } = await admin
         .from("outreach_messages")
-        .select("investor:investors(id, full_name, firm, email)")
+        .select("investor:investors_achraf(id, full_name, firm, email)")
         .eq("owner_id", user.id)
         .eq("openmail_thread_id", input.thread_id)
         .not("investor_id", "is", null)

@@ -5,8 +5,8 @@ import { ArrowDown, ArrowDownUp, ArrowUp, Check, Mail, Minus, Phone, Sparkles, S
 import { Button } from "@/components/ui/button";
 import { Avatar, Pill, Skeleton } from "@/components/ui/kit";
 import { LinkedInMark } from "./brand-icons";
-import { formatFunding, type DirectoryRow, type SortDir, type SortKey } from "@/lib/directory";
-import { INVESTOR_TYPES, label, ROLES, SECTORS, STAGES } from "@/lib/taxonomy";
+import type { DirectoryRow, SortDir, SortKey } from "@/lib/directory";
+import { label, ROLES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 
 // Every cell is one line: nowrap, fixed row height, the table scrolls sideways instead.
@@ -17,13 +17,23 @@ const stickyHead = "sticky z-[2] bg-[#faf6ef]";
 const pinnedLeft = "shadow-[8px_0_10px_-10px_rgba(57,28,37,0.28)]";
 const pinnedRight = "shadow-[-8px_0_10px_-10px_rgba(57,28,37,0.28)]";
 
-function Chips({ items, map, max = 3 }: { items: string[]; map: Record<string, string>; max?: number }) {
+/** "11-50" -> "11-50 people", "10001+" -> "10,001+ people". */
+export function sizeLabel(size: string | null) {
+  if (!size) return null;
+  return `${size.replace(/\d{4,}/g, (d) => Number(d).toLocaleString("en-GB"))} people`;
+}
+
+export function locationLabel(r: Pick<DirectoryRow, "location" | "city" | "state" | "country">) {
+  return r.location ?? ([r.city, r.state, r.country].filter(Boolean).join(", ") || null);
+}
+
+function Chips({ items, max = 3 }: { items: string[]; max?: number }) {
   if (!items.length) return <span className="text-[12px] text-faint">Not stated</span>;
   return (
     <div className="flex flex-nowrap items-center gap-1">
       {items.slice(0, max).map((s) => (
         <span key={s} className="rounded-[4px] border border-line-2 bg-panel-2 px-1.5 py-px text-[11.5px] text-muted">
-          {label(map, s)}
+          {s}
         </span>
       ))}
       {items.length > max && <span className="text-[11.5px] text-label">+{items.length - max}</span>}
@@ -59,8 +69,8 @@ function Reach({ r }: { r: DirectoryRow }) {
   );
   return (
     <div className="flex items-center gap-1">
-      {dot(true, <Mail className="h-3.5 w-3.5" />, r.unlocked ? r.email : "Email on file")}
-      {dot(r.has_phone, <Phone className="h-3.5 w-3.5" />, r.has_mobile ? "Mobile number on file" : r.has_direct ? "Direct line on file" : "No phone")}
+      {dot(r.has_email, <Mail className="h-3.5 w-3.5" />, r.has_email ? "Email on file" : "No email")}
+      {dot(r.has_phone, <Phone className="h-3.5 w-3.5" />, r.has_phone ? "Phone on file" : "No phone")}
       {dot(r.has_linkedin, <LinkedInMark className="h-3.5 w-3.5" />, r.has_linkedin ? "LinkedIn on file" : "No LinkedIn")}
     </div>
   );
@@ -96,7 +106,6 @@ const COLUMNS: Column[] = [
       <div className="flex items-center gap-2.5">
         <Avatar name={r.full_name} className="h-6 w-6 shrink-0 text-[10px]" />
         <span className="truncate font-medium text-ink">{r.full_name}</span>
-        {r.source === "test" && <Pill>Test</Pill>}
       </div>
     ),
     skeleton: (
@@ -108,27 +117,19 @@ const COLUMNS: Column[] = [
   },
   { id: "title", header: "Title", className: "max-w-[220px] truncate text-muted", cell: (r) => r.title ?? label(ROLES, r.role), skeleton: bar(92) },
   { id: "firm", header: "Firm", sort: "firm", className: "max-w-[220px] truncate text-ink", cell: (r) => r.firm, skeleton: bar(140) },
-  { id: "type", header: "Type", className: "text-muted", cell: (r) => label(INVESTOR_TYPES, r.investor_type), skeleton: bar(48) },
-  { id: "stages", header: "Stages", cell: (r) => <Chips items={r.stages} map={STAGES} />, skeleton: chipBars(58, 40) },
-  { id: "sectors", header: "Sectors", cell: (r) => <Chips items={r.sectors} map={SECTORS} />, skeleton: chipBars(84, 112, 70) },
-  { id: "location", header: "Location", sort: "location", className: "max-w-[200px] truncate text-muted", cell: (r) => r.location ?? "Not stated", skeleton: bar(96) },
+  { id: "industry", header: "Firm industry", className: "max-w-[200px] truncate text-muted", cell: (r) => r.industry ?? "Not stated", skeleton: bar(110) },
+  { id: "stages", header: "Stages", cell: (r) => <Chips items={r.stages} />, skeleton: chipBars(58, 40) },
+  { id: "focus", header: "Sector focus", cell: (r) => <Chips items={r.focus} />, skeleton: chipBars(84, 112, 70) },
   {
-    id: "size",
-    header: "Firm size",
-    sort: "size",
-    className: "tabular text-muted",
-    cell: (r) => (r.firm_employees ? `${r.firm_employees.toLocaleString("en-GB")} people` : "Not stated"),
-    skeleton: bar(60),
+    id: "location",
+    header: "Location",
+    sort: "location",
+    className: "max-w-[200px] truncate text-muted",
+    cell: (r) => locationLabel(r) ?? "Not stated",
+    skeleton: bar(96),
   },
-  {
-    id: "funding",
-    header: "Firm raised",
-    sort: "funding",
-    className: "tabular text-muted",
-    cell: (r) => formatFunding(r.firm_funding) ?? "Not stated",
-    skeleton: bar(52),
-  },
-  { id: "founded", header: "Founded", sort: "founded", className: "tabular text-muted", cell: (r) => r.firm_founded ?? "Not stated", skeleton: bar(36) },
+  { id: "size", header: "Firm size", sort: "size", className: "tabular text-muted", cell: (r) => sizeLabel(r.size) ?? "Not stated", skeleton: bar(60) },
+  { id: "founded", header: "Founded", sort: "founded", className: "tabular text-muted", cell: (r) => r.founded ?? "Not stated", skeleton: bar(36) },
   { id: "reach", header: "Contact", cell: (r) => <Reach r={r} />, skeleton: chipBars(24, 24, 24) },
   { id: "fit", header: "Fit", sort: "match", cell: (r) => <FitBar score={r.score} pick={r.pick_rank != null} />, skeleton: bar(88) },
   { id: "status", header: "Status", cell: (r) => <Status r={r} />, skeleton: bar(76) },
@@ -172,7 +173,7 @@ export function InvestorTable({
   onOpen: (r: DirectoryRow) => void;
   onSave: (r: DirectoryRow) => void;
   onEmail: (r: DirectoryRow) => void;
-  selected: Map<string, DirectoryRow>;
+  selected: Map<number, DirectoryRow>;
   onSelect: (r: DirectoryRow) => void;
   onSelectPage: (on: boolean) => void;
 }) {
@@ -256,9 +257,12 @@ export function InvestorTable({
                       </td>
                     ))}
                     <td className={cn(cellBase, stickyBody, pinnedRight, "right-0 border-l border-r-0 px-2")} onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" onClick={() => onEmail(r)}>
-                        <Mail className="h-3.5 w-3.5" /> Email
-                      </Button>
+                      {/* A disabled button gets no pointer events, so the tooltip sits on a wrapper. */}
+                      <span className="inline-flex" title={r.has_email ? undefined : "No email on file"}>
+                        <Button size="sm" onClick={() => onEmail(r)} disabled={!r.has_email}>
+                          <Mail className="h-3.5 w-3.5" /> Email
+                        </Button>
+                      </span>
                     </td>
                   </tr>
                 );

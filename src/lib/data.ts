@@ -9,10 +9,13 @@ import type { DashboardStats, OutreachMessage } from "@/lib/types";
 export function useTopMatches(limit = 5) {
   const [rows, setRows] = useState<DirectoryRow[] | null>(null);
   const load = useCallback(async () => {
-    const { data } = await createClient().rpc("search_investors", {
-      p_filters: { one_per_firm: true },
-      p_sort: "picks",
-      p_dir: "asc",
+    const supabase = createClient();
+    // Claude's shortlist leads when there is one; otherwise the plain fit score order.
+    const { count: picks } = await supabase.from("investor_matches").select("investor_id", { count: "exact", head: true });
+    const { data } = await supabase.rpc("search_investors", {
+      p_filters: { onePerFirm: true },
+      p_sort: picks ? "picks" : "match",
+      p_dir: "desc",
       p_limit: limit,
       p_offset: 0,
     });

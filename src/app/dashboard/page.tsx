@@ -323,9 +323,12 @@ export default function HomePage() {
                       ) : r.contacted ? (
                         <Pill tone="burgundy">Contacted</Pill>
                       ) : (
-                        <Button size="sm" onClick={() => setComposeFor(r)}>
-                          <Mail className="h-3.5 w-3.5" /> Email
-                        </Button>
+                        // A disabled button gets no pointer events, so the tooltip sits on a wrapper.
+                        <span title={r.has_email ? undefined : "No email on file"}>
+                          <Button size="sm" onClick={() => setComposeFor(r)} disabled={!r.has_email}>
+                            <Mail className="h-3.5 w-3.5" /> Email
+                          </Button>
+                        </span>
                       )}
                     </li>
                   ))}

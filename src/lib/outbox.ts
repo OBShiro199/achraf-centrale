@@ -3,17 +3,18 @@ import type { ScheduledEmail } from "@/lib/types";
 
 /** A scheduled email with the investor it goes to, as the Outbox reads it. */
 export interface ScheduledEmailRow extends ScheduledEmail {
-  investor: { id: string; full_name: string; firm: string } | null;
+  investor: { id: number; full_name: string; firm: string } | null;
   /** The sent message, for linking to its inbox thread. Only selected for history rows. */
   outreach?: { openmail_thread_id: string | null } | null;
 }
 
 // Investor contact details are not readable from the table; the Outbox only needs who and where.
-export const SCHEDULED_SELECT = "*, investor:investors(id, full_name, firm)";
+export const SCHEDULED_SELECT = "*, investor:investors_achraf(id, full_name, firm)";
 export const HISTORY_SELECT = `${SCHEDULED_SELECT}, outreach:outreach_messages!outreach_message_id(openmail_thread_id)`;
 
 export interface QueueItem {
-  investor_id: string;
+  /** investors_achraf id */
+  investor_id: number;
   subject: string;
   body: string;
 }

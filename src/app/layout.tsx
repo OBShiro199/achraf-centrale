@@ -19,7 +19,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geist.variable} ${outfit.variable} ${caveat.variable} antialiased`}>
-      <body className="min-h-dvh">
+      {/* Browser extensions (ColorZilla, Grammarly) add attributes to body before React loads. */}
+      <body className="min-h-dvh" suppressHydrationWarning>
         <PencilDefs />
         {children}
       </body>

@@ -1,7 +1,9 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@1.0.13": "1.0.13",
     "jsr:@std/encoding@1": "1.0.11",
+    "jsr:@std/internal@^1.0.6": "1.0.14",
     "npm:@anthropic-ai/sdk@0.128.0": "0.128.0",
     "npm:@pdf-lib/fontkit@1.1.1": "1.1.1",
     "npm:@resvg/resvg-wasm@2.6.2": "2.6.2",
@@ -10,8 +12,17 @@
     "npm:roughjs@4.6.6": "4.6.6"
   },
   "jsr": {
+    "@std/assert@1.0.13": {
+      "integrity": "ae0d31e41919b12c656c742b22522c32fb26ed0cba32975cb0de2a273cb68b29",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
     "@std/encoding@1.0.11": {
       "integrity": "e7cef2f0b3153bccc17431e7c864a1de03a4b6d9647389c43e08aaa775d37385"
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
     }
   },
   "npm": {

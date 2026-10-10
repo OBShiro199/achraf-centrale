@@ -3,24 +3,25 @@ import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
+import { investorId, loadInvestor } from "../_shared/investor.ts";
 
 serve(async (req) => {
   const user = await requireUser(req);
   const { investor_id, subject, body, idempotency_key } = await readJson<{
-    investor_id?: string;
+    investor_id?: number | string;
     subject?: string;
     body?: string;
     idempotency_key?: string;
   }>(req);
-  if (!investor_id || !subject?.trim() || !body?.trim()) throw new HttpError(400, "Add a subject and a message");
+  if (!subject?.trim() || !body?.trim()) throw new HttpError(400, "Add a subject and a message");
+  const id = investorId(investor_id);
   if (!(await hasPaidPlan(user.id))) throw new HttpError(402, "Sending starts when your plan starts, after the 7-day trial.");
 
-  const [{ data: inbox }, { data: investor }] = await Promise.all([
+  const [{ data: inbox }, investor] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),
-    admin.from("investors").select("id,email,full_name,source").eq("id", investor_id).single(),
+    loadInvestor(id),
   ]);
   if (!inbox) throw new HttpError(409, "Your inbox is still being set up");
-  if (!investor) throw new HttpError(404, "Investor not found");
 
   const outreachId = crypto.randomUUID();
   const { to, test } = await resolveRecipient(investor, user.id);

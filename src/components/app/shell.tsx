@@ -234,7 +234,7 @@ function ReplyWatcher() {
             window.dispatchEvent(new CustomEvent("centrale:reply"));
             let who = m.from_addr ?? "Someone";
             if (m.investor_id) {
-              const { data } = await supabase.from("investors").select("full_name,firm").eq("id", m.investor_id).single();
+              const { data } = await supabase.from("investors_achraf").select("full_name,firm").eq("id", m.investor_id).single();
               if (data) who = `${data.full_name} from ${data.firm}`;
               void brandConfetti();
             }

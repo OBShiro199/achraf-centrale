@@ -1,30 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Check, Copy, Eye, Globe, Lock, Mail, MapPin, MessageCircle, Phone, PhoneOff, Plus, Sparkles, Star } from "lucide-react";
+import { Building2, Check, Copy, Eye, Globe, Lock, Mail, MapPin, Phone, Plus, Sparkles, Star } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Avatar, Pill, Skeleton } from "@/components/ui/kit";
-import { createClient } from "@/lib/supabase/client";
-import { formatFunding, isUpgradeError, reasonLabel, revealInvestor, toLimitError, type Contact, type DirectoryRow } from "@/lib/directory";
-import { INVESTOR_TYPES, label, ROLES, SECTORS, STAGES, VALUES } from "@/lib/taxonomy";
+import { investorDetail, isUpgradeError, reasonLabel, revealInvestor, type Contact, type DirectoryRow, type InvestorDetail } from "@/lib/directory";
+import { INVESTOR_TYPES, label, ROLES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
-import { LinkedInMark, XMark } from "./brand-icons";
+import { LinkedInMark } from "./brand-icons";
 import { useApp } from "./context";
-
-interface Detail {
-  headline: string | null;
-  keywords: string[];
-  thesis: string | null;
-  firm_description: string | null;
-  firm_linkedin: string | null;
-  firm_twitter: string | null;
-  firm_phone: string | null;
-  firm_address: string | null;
-  portfolio: string[];
-  focus_note: string | null;
-  unlocked: boolean;
-  contact: Contact | null;
-}
+import { locationLabel, sizeLabel } from "./investor-table";
 
 function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -44,13 +29,13 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function Chips({ items, map }: { items: string[]; map: Record<string, string> }) {
+function Chips({ items }: { items: string[] }) {
   if (!items.length) return <span className="text-[13px] text-faint">Not stated</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {items.map((s) => (
         <span key={s} className="rounded-[4px] border border-line-2 bg-panel-2 px-1.5 py-px text-[12px] text-muted">
-          {label(map, s)}
+          {s}
         </span>
       ))}
     </div>
@@ -58,6 +43,16 @@ function Chips({ items, map }: { items: string[]; map: Record<string, string> })
 }
 
 const tel = (n: string) => n.replace(/[^\d+]/g, "");
+const masked = (v: string) => v.includes("•");
+const bareUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+const href = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+const splitEmails = (s: string | null) =>
+  (s ?? "")
+    .split(/[\s,;]+/)
+    .map((e) => e.trim())
+    .filter((e) => e.includes("@"));
+
+const SPECIALTIES_SHOWN = 24;
 
 export function InvestorDrawerBody({
   row,
@@ -80,35 +75,48 @@ export function InvestorDrawerBody({
 }) {
   const { ent } = useApp();
   const trial = ent != null && !ent.paid;
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detail, setDetail] = useState<InvestorDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState<Error | null>(null);
-  const [allKeywords, setAllKeywords] = useState(false);
+  const [allSpecialties, setAllSpecialties] = useState(false);
   const [moreAbout, setMoreAbout] = useState(false);
 
   useEffect(() => {
     let live = true;
     setDetail(null);
-    setAllKeywords(false);
+    setAllSpecialties(false);
     setMoreAbout(false);
     setDetailError(null);
     setRevealError(null);
-    void createClient()
-      .rpc("investor_detail", { p_id: row.id })
-      .then(({ data, error }) => {
-        if (!live) return;
-        if (error) setDetailError(toLimitError(error).message);
-        else setDetail(data as Detail);
-      });
+    investorDetail(row.id).then(
+      (d) => live && setDetail(d),
+      (err: unknown) => live && setDetailError(err instanceof Error ? err.message : "Could not load this investor"),
+    );
     return () => {
       live = false;
     };
   }, [row.id]);
 
-  const about = detail?.firm_description ?? detail?.thesis ?? null;
   const open = row.unlocked || Boolean(detail?.unlocked);
-  const c: Contact | null = detail?.contact ?? (row.unlocked ? row : null);
+  // Masked until revealed: the detail's contact when loaded, the row's masked values before that.
+  const c: Contact = detail?.contact ?? { email: row.email, other_emails: null, phone: row.phone, linkedin_url: row.linkedin_url };
+  const email = c.email ?? (row.has_email ? row.email : null);
+  const phone = c.phone ?? (row.has_phone ? row.phone : null);
+  const others = open ? splitEmails(c.other_emails).filter((e) => e !== email) : [];
+  const canReveal = !open && (row.has_email || row.has_phone || row.has_linkedin);
+
+  const stages = detail?.stages ?? row.stages;
+  const focus = detail?.focus ?? row.focus;
+  const industry = detail?.industry ?? row.industry;
+  const size = sizeLabel(detail?.size ?? row.size);
+  const founded = detail?.founded ?? row.founded;
+  const website = detail?.firm_website ?? row.firm_website;
+  const firmLinkedin = detail?.firm_linkedin ?? row.firm_linkedin;
+  const headline = row.headline ?? detail?.headline ?? null;
+  const location = locationLabel(row);
+  const about = detail?.about ?? null;
+  const specialties = detail?.specialties ?? [];
 
   async function reveal() {
     setRevealing(true);
@@ -123,18 +131,8 @@ export function InvestorDrawerBody({
       setRevealing(false);
     }
   }
-  const keywords = detail?.keywords ?? [];
-  const phones: { label: string; value: string; mobile?: boolean }[] = [
-    ...(c?.mobile ? [{ label: "Mobile", value: c.mobile, mobile: true }] : []),
-    ...(c?.direct_phone ? [{ label: "Direct line", value: c.direct_phone }] : []),
-    ...(detail?.firm_phone ? [{ label: "Firm", value: detail.firm_phone }] : []),
-  ];
-  const hidden = [
-    row.has_mobile && "mobile",
-    row.has_direct && "direct line",
-    row.has_linkedin && "LinkedIn",
-    row.has_twitter && "X",
-  ].filter(Boolean) as string[];
+
+  const hidden = [row.has_email && "email", row.has_phone && "phone", row.has_linkedin && "LinkedIn"].filter(Boolean) as string[];
 
   return (
     <div className="pb-10">
@@ -143,13 +141,18 @@ export function InvestorDrawerBody({
           <Avatar name={row.full_name} className="h-11 w-11 text-[14px]" />
           <div className="min-w-0">
             <h3 className="truncate text-[20px] tracking-[-0.03em]">{row.full_name}</h3>
-            <p className="truncate text-[13px] text-muted">{[row.title, row.firm].filter(Boolean).join(", ")}</p>
+            <p className="truncate text-[13px] text-muted">{row.title ? `${row.title} at ${row.firm}` : row.firm}</p>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1">
+        {headline && <p className="mt-3 text-[13.5px] leading-relaxed text-body">{headline}</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-1">
           <Pill tone="burgundy">{label(ROLES, row.role)}</Pill>
-          <Pill>{label(INVESTOR_TYPES, row.investor_type)}</Pill>
-          {row.source === "test" && <Pill tone="amber">Test contact</Pill>}
+          {row.investor_type && <Pill>{label(INVESTOR_TYPES, row.investor_type)}</Pill>}
+          {location && (
+            <span className="ml-1 inline-flex items-center gap-1 text-[12.5px] text-muted">
+              <MapPin className="h-3.5 w-3.5 text-label" /> {location}
+            </span>
+          )}
         </div>
 
         <div className="mt-5 flex items-end justify-between gap-4">
@@ -169,7 +172,7 @@ export function InvestorDrawerBody({
         {row.pick_why && (
           <div className="mt-4 rounded-[8px] border border-[#ecdcbf] bg-amber-soft/60 px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-[12px] font-semibold text-amber">
-              <Sparkles className="h-3.5 w-3.5" /> Claude pick #{row.pick_rank}
+              <Sparkles className="h-3.5 w-3.5" /> Claude pick{row.pick_rank != null ? ` #${row.pick_rank}` : ""}
               {row.pick_fit ? <span className="font-normal text-label">, fit {row.pick_fit} of 5</span> : null}
             </p>
             <p className="mt-1 text-[13.5px] leading-relaxed text-body">{row.pick_why}</p>
@@ -177,9 +180,11 @@ export function InvestorDrawerBody({
         )}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={onEmail}>
-            <Mail className="h-3.5 w-3.5" /> Draft intro email
-          </Button>
+          <span title={row.has_email ? undefined : "No email on file"}>
+            <Button variant="primary" size="sm" onClick={onEmail} disabled={!row.has_email}>
+              <Mail className="h-3.5 w-3.5" /> Draft intro email
+            </Button>
+          </span>
           <Button size="sm" onClick={onSave}>
             <Star className={cn("h-3.5 w-3.5", row.saved && "fill-vermilion text-vermilion")} /> {row.saved ? "Saved" : "Save"}
           </Button>
@@ -190,89 +195,95 @@ export function InvestorDrawerBody({
       </div>
 
       <div className="space-y-6 px-6 pt-6">
-        <section>
-          <p className="text-[12px] text-label">About {row.firm}</p>
-          {!detail ? (
-            <div className="mt-2 space-y-1.5">
-              <Skeleton className="h-3 w-full" />
-              <Skeleton className="h-3 w-[92%]" />
-              <Skeleton className="h-3 w-[70%]" />
-            </div>
-          ) : detailError ? (
-            <p className="mt-1.5 text-[13.5px] text-pencil">{detailError}</p>
-          ) : about ? (
-            <>
-              <p
-                className={cn(
-                  "mt-1.5 whitespace-pre-line border-l-2 border-vermilion/60 pl-3 text-[14px] leading-relaxed text-body",
-                  !moreAbout && "line-clamp-5",
-                )}
-              >
-                {about}
-              </p>
-              {about.length > 320 && (
-                <button onClick={() => setMoreAbout((v) => !v)} className="mt-1 pl-3 text-[12.5px] text-label hover:text-ink">
-                  {moreAbout ? "Show less" : "Read more"}
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="mt-1.5 text-[13.5px] text-faint">No description yet</p>
-          )}
-          {detail?.headline && <p className="mt-2 text-[13px] text-muted">{detail.headline}</p>}
-        </section>
-
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-[13.5px]">
-          {[
-            ["Location", row.location ?? "Not stated"],
-            ["Firm size", row.firm_employees ? `${row.firm_employees.toLocaleString("en-GB")} people` : "Not stated"],
-            ["Firm has raised", formatFunding(row.firm_funding) ?? "Not stated"],
-            ["Founded", row.firm_founded ?? "Not stated"],
-          ].map(([k, v]) => (
-            <div key={k}>
-              <dt className="text-[12px] text-label">{k}</dt>
-              <dd className="mt-0.5 text-ink">{v}</dd>
-            </div>
-          ))}
-        </dl>
-
         <section className="space-y-3">
           <div>
             <p className="text-[12px] text-label">Stages</p>
             <div className="mt-1.5">
-              <Chips items={row.stages} map={STAGES} />
+              <Chips items={stages} />
             </div>
           </div>
           <div>
-            <p className="text-[12px] text-label">Sectors</p>
+            <p className="text-[12px] text-label">Sector focus</p>
             <div className="mt-1.5">
-              <Chips items={row.sectors} map={SECTORS} />
+              <Chips items={focus} />
             </div>
           </div>
-          {row.values.length > 0 && (
-            <div>
-              <p className="text-[12px] text-label">Values</p>
-              <div className="mt-1.5">
-                <Chips items={row.values} map={VALUES} />
+        </section>
+
+        <section className="rounded-[8px] border border-line">
+          <p className="flex items-center gap-1.5 border-b border-line-2 px-4 py-2 text-[12px] text-label">
+            <Building2 className="h-3.5 w-3.5" /> {row.firm}
+          </p>
+          <div className="px-4 py-3">
+            <dl className="grid grid-cols-3 gap-x-4 gap-y-3 text-[13.5px]">
+              {[
+                ["Industry", industry ?? "Not stated"],
+                ["Size", size ?? "Not stated"],
+                ["Founded", founded ?? "Not stated"],
+              ].map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[12px] text-label">{k}</dt>
+                  <dd className="mt-0.5 truncate text-ink">{v}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {(website || firmLinkedin) && (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px]">
+                {website && (
+                  <a href={href(website)} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1.5 text-ink hover:text-vermilion">
+                    <Globe className="h-3.5 w-3.5 shrink-0 text-label" />
+                    <span className="truncate">{bareUrl(website)}</span>
+                  </a>
+                )}
+                {firmLinkedin && (
+                  <a href={href(firmLinkedin)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-ink hover:text-vermilion">
+                    <LinkedInMark className="h-3.5 w-3.5 shrink-0 text-label" /> Firm on LinkedIn
+                  </a>
+                )}
               </div>
+            )}
+
+            <div className="mt-3 border-t border-line-2 pt-3">
+              <p className="text-[12px] text-label">About</p>
+              {detailError ? (
+                <p className="mt-1.5 text-[13.5px] text-pencil">{detailError}</p>
+              ) : !detail ? (
+                <div className="mt-2 space-y-1.5">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-[92%]" />
+                  <Skeleton className="h-3 w-[70%]" />
+                </div>
+              ) : about ? (
+                <>
+                  <p className={cn("mt-1.5 whitespace-pre-line text-[14px] leading-relaxed text-body", !moreAbout && "line-clamp-5")}>{about}</p>
+                  {about.length > 320 && (
+                    <button onClick={() => setMoreAbout((v) => !v)} className="mt-1 text-[12.5px] text-label hover:text-ink">
+                      {moreAbout ? "Show less" : "Show more"}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-[13.5px] text-faint">No description yet</p>
+              )}
             </div>
-          )}
+          </div>
         </section>
 
         <section>
           <div className="flex items-baseline justify-between">
-            <p className="text-[12px] text-label">Focus keywords</p>
+            <p className="text-[12px] text-label">Specialties</p>
             <p className="text-[11.5px] text-faint">Click one to filter by it</p>
           </div>
-          {!detail ? (
+          {!detail && !detailError ? (
             <div className="mt-2 flex flex-wrap gap-1">
               {[70, 96, 58, 120, 84, 64].map((w, i) => (
                 <Skeleton key={i} className="h-[22px]" style={{ width: w }} />
               ))}
             </div>
-          ) : keywords.length ? (
+          ) : specialties.length ? (
             <div className="mt-2 flex flex-wrap gap-1">
-              {(allKeywords ? keywords : keywords.slice(0, 24)).map((k) => (
+              {(allSpecialties ? specialties : specialties.slice(0, SPECIALTIES_SHOWN)).map((k) => (
                 <button
                   key={k}
                   onClick={() => onKeyword(k)}
@@ -281,9 +292,9 @@ export function InvestorDrawerBody({
                   {k}
                 </button>
               ))}
-              {keywords.length > 24 && (
-                <button onClick={() => setAllKeywords((v) => !v)} className="px-1.5 text-[12px] text-label hover:text-ink">
-                  {allKeywords ? "Fewer" : `All ${keywords.length}`}
+              {specialties.length > SPECIALTIES_SHOWN && (
+                <button onClick={() => setAllSpecialties((v) => !v)} className="px-1.5 text-[12px] text-label hover:text-ink">
+                  {allSpecialties ? "Fewer" : `All ${specialties.length}`}
                 </button>
               )}
             </div>
@@ -292,46 +303,76 @@ export function InvestorDrawerBody({
           )}
         </section>
 
-        {detail && detail.portfolio.length > 0 && (
-          <section>
-            <p className="text-[12px] text-label">Portfolio</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {detail.portfolio.map((p) => (
-                <span key={p} className="rounded-[5px] border border-line bg-panel px-2 py-0.5 text-[12.5px] text-ink">
-                  {p}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
         <section className="rounded-[8px] border border-line">
           <p className="border-b border-line-2 px-4 py-2 text-[12px] text-label">Contact</p>
           <div className="divide-y divide-line-2 text-[13.5px]">
             <div className="flex items-center gap-2.5 px-4 py-2.5">
               <Mail className="h-4 w-4 shrink-0 text-label" />
-              {open && c ? (
+              {!email ? (
+                <span className="text-faint">No email on file</span>
+              ) : open && !masked(email) ? (
                 <>
-                  <a href={`mailto:${c.email}`} className="min-w-0 truncate hover:text-vermilion">
-                    {c.email}
+                  <a href={`mailto:${email}`} className="min-w-0 truncate hover:text-vermilion">
+                    {email}
                   </a>
                   <span className="ml-auto">
-                    <CopyButton text={c.email} />
+                    <CopyButton text={email} />
                   </span>
                 </>
               ) : (
-                <span className="min-w-0 truncate text-muted">{row.email}</span>
+                <span className="min-w-0 truncate text-muted">{email}</span>
               )}
             </div>
-            {!open && (
+
+            {others.map((e) => (
+              <div key={e} className="flex items-center gap-2.5 px-4 py-2.5">
+                <Mail className="h-4 w-4 shrink-0 text-faint" />
+                <a href={`mailto:${e}`} className="min-w-0 truncate hover:text-vermilion">
+                  {e}
+                </a>
+                <span className="text-[12px] text-label">Other</span>
+                <span className="ml-auto">
+                  <CopyButton text={e} />
+                </span>
+              </div>
+            ))}
+
+            {phone && (
+              <div className="flex items-center gap-2.5 px-4 py-2.5">
+                <Phone className="h-4 w-4 shrink-0 text-label" />
+                {open && !masked(phone) ? (
+                  <>
+                    <a href={`tel:${tel(phone)}`} className="tabular hover:text-vermilion">
+                      {phone}
+                    </a>
+                    <span className="ml-auto">
+                      <CopyButton text={phone} />
+                    </span>
+                  </>
+                ) : (
+                  // Masked numbers are text only: nothing to call or copy yet.
+                  <span className="tabular text-muted">{phone}</span>
+                )}
+              </div>
+            )}
+
+            {open && c.linkedin_url && (
+              <a href={href(c.linkedin_url)} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]">
+                <LinkedInMark className="h-4 w-4 shrink-0 text-label" /> LinkedIn profile
+              </a>
+            )}
+
+            {canReveal && (
               <div className="bg-panel-2 px-4 py-3">
                 <p className="flex items-center gap-1.5 text-[12.5px] text-muted">
-                  <Lock className="h-3.5 w-3.5" /> Email{hidden.length ? `, ${hidden.join(", ")}` : ""} hidden
+                  <Lock className="h-3.5 w-3.5" /> Full {hidden.join(", ")} hidden
                 </p>
                 <p className="mt-1 text-[12px] text-label">
                   {trial
                     ? "Full contact details show when your plan starts, after the 7-day trial."
-                    : "You can email them from Centrale without revealing anything. Revealing uses one credit."}
+                    : row.has_email
+                      ? "You can email them from Centrale without revealing anything. Revealing uses one credit."
+                      : "Revealing uses one credit."}
                 </p>
                 {trial ? (
                   <ButtonLink href="/dashboard/billing" size="sm" className="mt-2">
@@ -352,88 +393,6 @@ export function InvestorDrawerBody({
                     {revealsLeft != null && <span className="text-label">, {revealsLeft} left</span>}
                   </Button>
                 )}
-              </div>
-            )}
-            {phones.map((p) =>
-              // Truncated numbers ("+1 201-•••-••••") are shown as text only: nothing to call, copy or message yet.
-              p.value.includes("•") ? (
-                <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5 text-muted">
-                  <Phone className="h-4 w-4 shrink-0 text-label" />
-                  <span className="tabular">{p.value}</span>
-                  <span className="text-[12px] text-label">{p.label}</span>
-                </div>
-              ) : (
-                <div key={p.label} className="flex items-center gap-2.5 px-4 py-2.5">
-                  <Phone className="h-4 w-4 shrink-0 text-label" />
-                  <a href={`tel:${tel(p.value)}`} className="tabular hover:text-vermilion">
-                    {p.value}
-                  </a>
-                  <span className="text-[12px] text-label">{p.label}</span>
-                  <span className="ml-auto flex items-center gap-1">
-                    {p.mobile && (
-                      <a
-                        href={`https://wa.me/${tel(p.value).replace("+", "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 rounded-[5px] border border-line px-2 py-0.5 text-[12px] text-green hover:border-green/40"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                      </a>
-                    )}
-                    <CopyButton text={p.value} />
-                  </span>
-                </div>
-              ),
-            )}
-            {row.do_not_call && (
-              <div className="flex items-start gap-2.5 bg-pencil-soft/50 px-4 py-2.5 text-[12.5px] text-pencil">
-                <PhoneOff className="mt-0.5 h-4 w-4 shrink-0" />A mobile number for this person is on a do-not-call list, so it is hidden.
-              </div>
-            )}
-            {c?.linkedin_url && (
-              <a
-                href={c.linkedin_url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
-              >
-                <LinkedInMark className="h-4 w-4 shrink-0 text-label" /> LinkedIn profile
-              </a>
-            )}
-            {c?.twitter_url && (
-              <a
-                href={c.twitter_url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
-              >
-                <XMark className="h-4 w-4 shrink-0 text-label" />{" "}
-                {c.twitter_url.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, "@").replace(/^@@/, "@")}
-              </a>
-            )}
-            {row.website_url && (
-              <a
-                href={row.website_url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
-              >
-                <Globe className="h-4 w-4 shrink-0 text-label" /> {row.website_url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
-              </a>
-            )}
-            {detail?.firm_linkedin && (
-              <a
-                href={detail.firm_linkedin}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-black/[0.02]"
-              >
-                <Building2 className="h-4 w-4 shrink-0 text-label" /> {row.firm} on LinkedIn
-              </a>
-            )}
-            {detail?.firm_address && (
-              <div className="flex items-center gap-2.5 px-4 py-2.5 text-muted">
-                <MapPin className="h-4 w-4 shrink-0 text-label" /> {detail.firm_address}
               </div>
             )}
           </div>

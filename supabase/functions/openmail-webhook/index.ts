@@ -2,6 +2,7 @@
 // emails the founder a heads-up from the system inbox.
 import { admin, json, secret, serve } from "../_shared/core.ts";
 import { openmail, verifySignature } from "../_shared/openmail.ts";
+import { findInvestorByEmail, loadInvestor } from "../_shared/investor.ts";
 import { escapeHtml } from "../_shared/mail.ts";
 
 interface ReceivedEvent {
@@ -45,7 +46,7 @@ serve(async (req) => {
   if (from === inbox.address.toLowerCase()) return json({ ok: true, ignored: "self" });
 
   // Attribute the reply: same thread as an email we sent, else the sender's address.
-  let investorId: string | null = null;
+  let investorId: number | null = null;
   if (event.thread_id) {
     const { data } = await admin
       .from("outreach_messages")
@@ -56,10 +57,7 @@ serve(async (req) => {
       .maybeSingle();
     investorId = data?.investor_id ?? null;
   }
-  if (!investorId) {
-    const { data } = await admin.from("investors").select("id").ilike("email", from).limit(1).maybeSingle();
-    investorId = data?.id ?? null;
-  }
+  if (!investorId) investorId = (await findInvestorByEmail(from))?.id ?? null;
 
   await admin.from("outreach_messages").upsert(
     {
@@ -93,8 +91,8 @@ serve(async (req) => {
   // Heads-up email to the founder, only for investor replies.
   if (investorId) {
     try {
-      const [{ data: investor }, { data: profile }] = await Promise.all([
-        admin.from("investors").select("full_name,firm").eq("id", investorId).single(),
+      const [investor, { data: profile }] = await Promise.all([
+        loadInvestor(investorId).catch(() => null),
         admin.from("profiles").select("email,first_name").eq("id", inbox.owner_id).single(),
       ]);
       const appUrl = await secret("APP_URL").catch(() => "http://localhost:3000");

@@ -20,11 +20,12 @@ export function ComposeModal({
 }: {
   investor: Pick<Investor, "id" | "full_name" | "email"> | null;
   onClose: () => void;
-  onSent?: (investorId: string) => void;
+  onSent?: (investorId: number) => void;
   firstEmail?: boolean;
 }) {
   const { inbox, ent } = useApp();
   const locked = ent != null && !ent.can_send;
+  const noEmail = investor != null && !investor.email;
   const toast = useToast();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -33,7 +34,7 @@ export function ComposeModal({
   const [error, setError] = useState<string | null>(null);
   const key = useRef<string>("");
 
-  async function draft(id: string) {
+  async function draft(id: number) {
     setDrafting(true);
     setError(null);
     try {
@@ -84,7 +85,8 @@ export function ComposeModal({
             <div className="flex gap-3">
               <span className="w-12 text-label">To</span>
               <span className="text-ink">
-                {investor.full_name} <span className="text-label">&lt;{investor.email}&gt;</span>
+                {investor.full_name}{" "}
+                {investor.email ? <span className="text-label">&lt;{investor.email}&gt;</span> : <span className="text-pencil">No email on file</span>}
               </span>
             </div>
           </div>
@@ -111,7 +113,9 @@ export function ComposeModal({
             </Button>
             <div className="flex items-center gap-3">
               <span className="hidden text-[12px] text-label sm:inline">
-                {locked ? (
+                {noEmail ? (
+                  "There is no email on file for this investor."
+                ) : locked ? (
                   <>
                     Sending starts with your plan.{" "}
                     <a href="/dashboard/billing" className="text-ink underline-offset-2 hover:underline">
@@ -122,7 +126,7 @@ export function ComposeModal({
                   "Drafted by Claude. Read before sending."
                 )}
               </span>
-              <Button variant="primary" onClick={() => void send()} disabled={locked || drafting || sending || !subject.trim() || !body.trim() || !inbox}>
+              <Button variant="primary" onClick={() => void send()} disabled={locked || noEmail || drafting || sending || !subject.trim() || !body.trim() || !inbox}>
                 <Send className="h-3.5 w-3.5" /> {sending ? "Sending" : "Send"}
               </Button>
             </div>

@@ -18,7 +18,7 @@ export function toTrackedHtml(text: string, outreachId: string) {
 export { escapeHtml };
 
 /** Every test-mode email goes here. Override with the Vault secret OUTREACH_TEST_RECIPIENT. */
-const DEFAULT_TEST_RECIPIENT = "oliverburt3+centraletest@gmail.com";
+const DEFAULT_TEST_RECIPIENT = "oliverburt3@gmail.com";
 
 /**
  * Test mode. Directory investors only receive email once the Vault secret OUTREACH_LIVE is "true".

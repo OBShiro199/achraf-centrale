@@ -9,6 +9,25 @@ import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { INVESTOR_TYPES, label, REVENUE, ROLES, SECTORS, STAGES, VALUES } from "../_shared/taxonomy.ts";
 
 const VOCAB_SIZE = 1500;
+
+/** The founder's sectors as directory focus tags. Mirrors private.focus_for_sectors. */
+const SECTOR_FOCUS: Record<string, string[]> = {
+  b2b_saas: ["SaaS/Enterprise"],
+  ai_ml: ["AI/ML"],
+  fintech: ["FinTech"],
+  climate: ["Climate/Energy"],
+  health: ["HealthTech", "BioTech"],
+  consumer: ["Consumer"],
+  ecommerce: ["E-commerce", "Consumer"],
+  hardware: ["Hardware/Semis", "Robotics", "DeepTech"],
+  marketplace: ["Marketplace"],
+  devtools: ["DevTools/Data"],
+  gtm_sales: ["SaaS/Enterprise", "Future of Work"],
+  edtech: ["EdTech"],
+  proptech: ["PropTech/RealEstate"],
+  food_agri: ["AgTech/Food"],
+  logistics: ["Logistics/SupplyChain", "Mobility"],
+};
 const CANDIDATES = 60;
 const PICKS = 25;
 
@@ -87,9 +106,12 @@ Wants to hear from: ${(startup.investor_types ?? []).map((v: string) => label(IN
     const country = picked.country.trim() || null;
     await admin.from("startups").update({ match_keywords: matchKeywords, country }).eq("owner_id", user.id);
 
-    // Step 2: the database scores the whole directory with the new keywords.
+    // Step 2: the database scores the directory with the new keywords.
+    const focus = [...new Set(((startup.sectors ?? []) as string[]).flatMap((x) => SECTOR_FOCUS[x] ?? []))];
     const { data: page, error: searchError } = await userClient(req).rpc("search_investors", {
-      p_filters: { onePerFirm: true },
+      // Only investors tagged with the founder's sectors (when known): the top fits always share one, and
+      // scoring the whole directory is too heavy for the database's time limit.
+      p_filters: focus.length ? { onePerFirm: true, focus } : { onePerFirm: true, hasEmail: true },
       p_sort: "match",
       p_dir: "desc",
       p_limit: CANDIDATES,

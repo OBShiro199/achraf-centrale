@@ -36,7 +36,7 @@ import {
   type SortDir,
   type SortKey,
 } from "@/lib/directory";
-import { FILTERS, fromSaved, hasAnyFilter, toServer, type Filters } from "@/lib/lead-filters";
+import { FILTERS, fromSaved, hasAnyFilter, profileFilters, toServer, type Filters } from "@/lib/lead-filters";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -700,6 +700,7 @@ function Directory({ init }: { init: Init }) {
 /** Restores the founder's last search after mount (sessionStorage), then applies ?search=, ?picks=1 or ?saved=1. */
 function DirectoryLoader() {
   const params = useSearchParams();
+  const { startup } = useApp();
   const key = params.toString();
   const [init, setInit] = useState<Init | null>(null);
 
@@ -710,7 +711,11 @@ function DirectoryLoader() {
     const sort = SORTS.some((s) => s.value === restored?.sort) ? restored!.sort : "match";
     let next: Init = {
       key,
-      filters: fromSaved(restored?.filters ?? {}).filters,
+      // A first visit starts from the founder's own sectors and round rather than the whole directory.
+      filters: (() => {
+        const kept = fromSaved(restored?.filters ?? {}).filters;
+        return hasAnyFilter(kept) || restored?.q ? kept : profileFilters(startup);
+      })(),
       q: typeof restored?.q === "string" ? restored.q : "",
       sort,
       dir: restored?.dir === "asc" ? "asc" : restored?.dir === "desc" ? "desc" : defaultDir(sort),
@@ -721,6 +726,7 @@ function DirectoryLoader() {
     if (p.get("picks") === "1") next = { ...next, filters: { picks: true }, q: "", sort: "picks", dir: "asc", ai: null, saved: null };
     else if (p.get("saved") === "1") next = { ...next, filters: { saved: true }, q: "", ai: null, saved: null };
     setInit(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   if (!init || init.key !== key) return <PageSkeleton />;

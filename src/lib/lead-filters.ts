@@ -189,3 +189,43 @@ export function fromSaved(raw: Record<string, unknown>): { filters: Filters; q: 
   for (const [k, val] of Object.entries(rest)) if (known.has(k)) filters[k] = val as Filters[string];
   return { filters, q: typeof q === "string" ? q : "" };
 }
+
+// The founder's sectors and round, mapped onto the directory's focus and stage tags.
+// Mirrors private.focus_for_sectors and private.stages_for_round in the database.
+const SECTOR_FOCUS: Record<string, string[]> = {
+  b2b_saas: ["SaaS/Enterprise"],
+  ai_ml: ["AI/ML"],
+  fintech: ["FinTech"],
+  climate: ["Climate/Energy"],
+  health: ["HealthTech", "BioTech"],
+  consumer: ["Consumer"],
+  ecommerce: ["E-commerce", "Consumer"],
+  hardware: ["Hardware/Semis", "Robotics", "DeepTech"],
+  marketplace: ["Marketplace"],
+  devtools: ["DevTools/Data"],
+  gtm_sales: ["SaaS/Enterprise", "Future of Work"],
+  edtech: ["EdTech"],
+  proptech: ["PropTech/RealEstate"],
+  food_agri: ["AgTech/Food"],
+  logistics: ["Logistics/SupplyChain", "Mobility"],
+};
+const ROUND_STAGES: Record<string, string[]> = {
+  pre_seed: ["Pre-Seed", "Seed", "Angel", "Accelerator", "Early Stage"],
+  angel: ["Angel", "Pre-Seed", "Seed", "Early Stage"],
+  seed: ["Seed", "Pre-Seed", "Early Stage"],
+  series_a: ["Series A", "Early Stage", "Growth"],
+  series_b: ["Series B", "Series C", "Series D+", "Growth", "Late Stage"],
+};
+
+/**
+ * Where a founder's first visit starts: investors in their sectors, at their round, with an email.
+ * Shown as ordinary chips, and much lighter than scoring the whole directory.
+ */
+export function profileFilters(startup: { sectors?: string[] | null; stage?: string | null }): Filters {
+  const focus = [...new Set((startup.sectors ?? []).flatMap((s) => SECTOR_FOCUS[s] ?? []))];
+  const stages = ROUND_STAGES[startup.stage ?? ""] ?? [];
+  const f: Filters = { hasEmail: true };
+  if (focus.length) f.focus = focus;
+  if (stages.length) f.stages = stages;
+  return f;
+}

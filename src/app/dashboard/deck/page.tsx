@@ -388,7 +388,10 @@ export default function DeckPage() {
 /** What the deck is styled with: captured from the founder's homepage, refreshable for one scrape. */
 function BrandCard({ startup, refreshing, onRefresh }: { startup: Startup; refreshing: boolean; onRefresh: () => void }) {
   const b = startup.brand;
-  const swatches = b ? ([b.colors.primary, b.colors.accent, b.colors.secondary, b.colors.background, b.colors.text].filter(Boolean) as string[]) : [];
+  // Sites often reuse a colour (black text on a black background, say); show each once.
+  const swatches = b
+    ? [...new Set([b.colors.primary, b.colors.accent, b.colors.secondary, b.colors.background, b.colors.text].filter((c): c is string => Boolean(c)).map((c) => c.toLowerCase()))]
+    : [];
   return (
     <Card>
       <CardHeader

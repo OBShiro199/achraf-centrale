@@ -218,14 +218,15 @@ const ROUND_STAGES: Record<string, string[]> = {
 };
 
 /**
- * Where a founder's first visit starts: investors in their sectors, at their round, with an email.
+ * Where a founder's first visit starts: investors in their sectors, at their round, in their country, with an email.
  * Shown as ordinary chips, and much lighter than scoring the whole directory.
  */
-export function profileFilters(startup: { sectors?: string[] | null; stage?: string | null }): Filters {
+export function profileFilters(startup: { sectors?: string[] | null; stage?: string | null; country?: string | null }): Filters {
   const focus = [...new Set((startup.sectors ?? []).flatMap((s) => SECTOR_FOCUS[s] ?? []))];
   const stages = ROUND_STAGES[startup.stage ?? ""] ?? [];
   const f: Filters = { hasEmail: true };
   if (focus.length) f.focus = focus;
   if (stages.length) f.stages = stages;
+  if (startup.country) f.countries = [startup.country];
   return f;
 }

@@ -49,6 +49,8 @@ export interface Startup {
   deck_error: string | null;
   /** Investor-side keywords picked by Claude from the directory's own vocabulary. */
   match_keywords: string[];
+  /** The startup's country, worked out during matching. */
+  country: string | null;
   matches_status: "idle" | "running" | "done" | "error";
   matched_at: string | null;
   /** Colours, fonts, logo, favicon and homepage screenshot captured from the founder's website. */

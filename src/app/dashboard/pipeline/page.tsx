@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CalendarClock } from "lucide-react";
+import { OutreachResults } from "@/components/app/outreach-results";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Drawer, Empty, Pill, Settle, Skeleton } from "@/components/ui/kit";
@@ -200,6 +201,10 @@ export default function PipelinePage() {
           </div>
         </Settle>
       )}
+
+      <Settle delay={120}>
+        <OutreachResults />
+      </Settle>
 
       <p className="text-[12.5px] text-label">
         Stages: {STAGES.map((s) => stageLabel(s.key)).join(", ")}. Read more in <Link href="/dashboard/docs#pipeline" className="underline">Docs</Link>.

@@ -417,6 +417,12 @@ export const DOCS: DocSection[] = [
           Open a card to change the stage, set a next step with a date, keep notes, or jump to the email thread. Next steps that are due today or
           overdue are counted at the top of the board. Investors you added by hand and have not emailed can be removed from the board.
         </P>
+        <H3>What is working</H3>
+        <P>
+          Below the board, <B>What is working</B> shows how many of the investors you emailed opened, replied and reached a meeting, and the same
+          rates by sector, stage, region and role. A group shows once you have emailed 3 or more investors in it, and the best reply rate is
+          highlighted. Opens are approximate, since some mail apps open every email they receive.
+        </P>
       </>
     ),
   },
@@ -694,6 +700,7 @@ export const DOCS: DocSection[] = [
               "Delete your account and its data from Settings.",
               "Pipeline: a board of every investor in your raise, with stages, notes and next steps.",
               "Signups from temporary inbox services are refused, and one network can open at most 3 accounts a day.",
+              "What is working: reply and meeting rates by sector, stage, region and role, on the Pipeline page.",
               "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },

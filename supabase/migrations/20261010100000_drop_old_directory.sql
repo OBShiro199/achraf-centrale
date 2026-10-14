@@ -17,11 +17,15 @@ alter table public.investor_matches  drop constraint if exists investor_matches_
 alter table public.investor_unlocks  drop constraint if exists investor_unlocks_investor_id_fkey;
 
 drop table if exists private.investor_index;
-drop function if exists private.investor_index_tg();
 drop table if exists private.keyword_ids;
 drop table if exists public.investor_keywords;
 
+-- Dropping the table removes its investors_index trigger, which the trigger function below depends on.
 drop table if exists public.investors;
 drop table if exists public.contacts;
+drop function if exists private.investor_index_tg();
+
+insert into supabase_migrations.schema_migrations (version, name) values ('20261010100000', 'drop_old_directory')
+  on conflict (version) do nothing;
 
 commit;

@@ -4,6 +4,7 @@ import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.
 import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
+import { dailyLimitReached, INBOX_DAILY_CAP } from "../_shared/limits.ts";
 
 serve(async (req) => {
   const user = await requireUser(req);
@@ -22,6 +23,10 @@ serve(async (req) => {
     loadInvestor(id),
   ]);
   if (!inbox) throw new HttpError(409, "Your inbox is still being set up");
+
+  const limit = await dailyLimitReached(inbox.id);
+  if (limit === "inbox") throw new HttpError(429, `You have sent ${INBOX_DAILY_CAP} emails today, the most a new inbox can send. Queue this one and it goes out tomorrow morning.`);
+  if (limit === "account") throw new HttpError(429, "Centrale has reached today's sending limit. Queue this email and it goes out tomorrow morning.");
 
   if (await isSuppressed(investor.email)) {
     throw new HttpError(409, `${investor.full_name} has asked not to be emailed, or their address bounced.`);

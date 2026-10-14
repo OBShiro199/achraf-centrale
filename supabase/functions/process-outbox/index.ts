@@ -1,13 +1,14 @@
 // Runs every minute from pg_cron. Plans automatic follow-ups, then sends whatever in the
-// Outbox is due, staying inside OpenMail's limits (10 a minute and 20 cold sends a day per new inbox).
+// Outbox is due, staying inside OpenMail's limits (10 a minute, 20 cold sends a day per new inbox, and the
+// account-wide daily cap in _shared/limits.ts).
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
+import { accountDailyCap, INBOX_DAILY_CAP, sentToday as countSentToday, startOfUtcDay } from "../_shared/limits.ts";
 
-const DAILY_CAP = 20;
 const PER_RUN_PER_INBOX = 8;
 const PLAN_PER_RUN = 5;
 
@@ -23,11 +24,6 @@ interface Scheduled {
   attempts: number;
 }
 
-const startOfUtcDay = () => {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
 const tomorrowMorning = (offsetMinutes: number) => {
   const d = startOfUtcDay();
   d.setUTCDate(d.getUTCDate() + 1);
@@ -101,6 +97,8 @@ async function sendDue() {
   const log: string[] = [];
   const sentThisRun = new Map<string, number>();
   const sentToday = new Map<string, number>();
+  let accountSent: number | null = null;
+  const accountCap = await accountDailyCap();
 
   for (const e of (claimed ?? []) as Scheduled[]) {
     const requeue = (patch: Record<string, unknown>) =>
@@ -126,18 +124,16 @@ async function sendDue() {
       continue;
     }
 
-    if (!sentToday.has(inbox.id)) {
-      const { count } = await admin
-        .from("outreach_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("inbox_id", inbox.id)
-        .eq("direction", "outbound")
-        .gte("sent_at", startOfUtcDay().toISOString());
-      sentToday.set(inbox.id, count ?? 0);
-    }
-    if ((sentToday.get(inbox.id) ?? 0) >= DAILY_CAP) {
+    if (!sentToday.has(inbox.id)) sentToday.set(inbox.id, await countSentToday(inbox.id));
+    if ((sentToday.get(inbox.id) ?? 0) >= INBOX_DAILY_CAP) {
       await requeue({ send_after: tomorrowMorning(Math.floor(Math.random() * 90)), last_error: null });
       log.push(`${e.id}: daily limit, moved to tomorrow`);
+      continue;
+    }
+    accountSent ??= await countSentToday();
+    if (accountSent >= accountCap) {
+      await requeue({ send_after: tomorrowMorning(Math.floor(Math.random() * 90)), last_error: null });
+      log.push(`${e.id}: account daily limit (${accountCap}), moved to tomorrow`);
       continue;
     }
     if ((sentThisRun.get(inbox.id) ?? 0) >= PER_RUN_PER_INBOX) {
@@ -212,6 +208,7 @@ async function sendDue() {
     }
     sentThisRun.set(inbox.id, (sentThisRun.get(inbox.id) ?? 0) + 1);
     sentToday.set(inbox.id, (sentToday.get(inbox.id) ?? 0) + 1);
+    accountSent = (accountSent ?? 0) + 1;
     log.push(`${e.id}: sent ${e.kind}`);
   }
   return log;

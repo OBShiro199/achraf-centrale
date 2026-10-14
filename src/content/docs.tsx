@@ -353,7 +353,8 @@ export const DOCS: DocSection[] = [
           rows={[
             ["Emails a day from one inbox", "20, counted per UTC day"],
             ["Emails a run from one inbox", "8, with a run every minute"],
-            ["Over the daily limit", "Moves to the next morning, from 08:00 UTC"],
+            ["Emails a day across all Centrale founders", "150 for now, our email provider's account limit"],
+            ["Over either daily limit", "Moves to the next morning, from 08:00 UTC"],
           ]}
           caption="The limits let a new inbox warm up gradually, which keeps your emails out of spam folders."
         />
@@ -659,6 +660,7 @@ export const DOCS: DocSection[] = [
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
               "Investors can remove themselves from the directory at /remove.",
               "Delete your account and its data from Settings.",
+              "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },
           {

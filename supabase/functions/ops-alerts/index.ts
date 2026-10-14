@@ -3,6 +3,7 @@
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { escapeHtml } from "../_shared/mail.ts";
 import { openmail } from "../_shared/openmail.ts";
+import { accountDailyCap, sentToday } from "../_shared/limits.ts";
 
 /** Above this, a day's Claude and Firecrawl spend across all founders is worth a look. */
 const DAILY_SPEND_ALERT_USD = 25;
@@ -23,8 +24,18 @@ interface Snapshot {
   read_only: boolean;
 }
 
-function problems(s: Snapshot, dbLimitMb: number) {
+/** Webhooks alert on any failure; other functions once they fail 3 times in an hour. */
+function functionProblems(errors: { fn: string; n: number; last: string }[]) {
+  return errors
+    .filter((e) => e.fn.endsWith("-webhook") || e.n >= 3)
+    .map((e) => ({ key: `fn:${e.fn}`, text: `${e.fn} failed ${e.n} time${e.n === 1 ? "" : "s"} in the last hour. Latest: ${e.last}` }));
+}
+
+function problems(s: Snapshot, dbLimitMb: number, sends: { sent: number; cap: number }) {
   const out: { key: string; text: string }[] = [];
+  if (sends.sent >= sends.cap * 0.8) {
+    out.push({ key: "account_cap", text: `${sends.sent} of OpenMail's ${sends.cap} daily account sends are used. Past the cap, emails wait until tomorrow; ask OpenMail about Enterprise.` });
+  }
   if (s.read_only) out.push({ key: "read_only", text: "The database is read-only: saving, sending and signups are failing." });
   if (s.db_size_mb > dbLimitMb * 0.9) out.push({ key: "db_size", text: `The database is ${s.db_size_mb} MB, close to its limit.` });
   for (const c of s.cron_failures) out.push({ key: `cron:${c.job}`, text: `Scheduled job ${c.job} failed ${c.runs} times in the last hour: ${c.last_error ?? "no message"}.` });
@@ -49,7 +60,9 @@ serve(async (req) => {
 
   const dbLimitMb = Number(await secret("OPS_DB_LIMIT_MB").catch(() => "")) || DEFAULT_DB_LIMIT_MB;
   const due: string[] = [];
-  for (const p of problems(snapshot, dbLimitMb)) {
+  const sends = { sent: await sentToday(), cap: await accountDailyCap() };
+  const { data: fnErrors } = await admin.rpc("function_error_counts");
+  for (const p of [...problems(snapshot, dbLimitMb, sends), ...functionProblems((fnErrors ?? []) as { fn: string; n: number; last: string }[])]) {
     const { data: send } = await admin.rpc("ops_alert_due", { p_key: p.key });
     if (send) due.push(p.text);
   }

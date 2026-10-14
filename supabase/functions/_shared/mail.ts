@@ -4,12 +4,21 @@ function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** Plain text to simple HTML paragraphs, with an open-tracking pixel appended. `footer` is trusted HTML added at the end. */
-export function toTrackedHtml(text: string, outreachId: string, footer = "") {
+/**
+ * Plain text to simple HTML paragraphs, with an open-tracking pixel appended. `footer` is trusted HTML added at
+ * the end. When the founder's booking link appears in the text it becomes a link through the click counter.
+ */
+export function toTrackedHtml(text: string, outreachId: string, footer = "", calendarUrl?: string | null) {
+  const calendar = calendarUrl ? escapeHtml(calendarUrl) : null;
+  const tracked = `${SUPABASE_URL}/functions/v1/meeting-link?m=${outreachId}`;
   const paragraphs = text
     .trim()
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 14px">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => {
+      let html = escapeHtml(p).replace(/\n/g, "<br>");
+      if (calendar) html = html.split(calendar).join(`<a href="${tracked}" style="color:#141414">${calendar}</a>`);
+      return `<p style="margin:0 0 14px">${html}</p>`;
+    })
     .join("");
   const pixel = `<img src="${SUPABASE_URL}/functions/v1/track-open?m=${outreachId}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">`;
   return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#141414">${paragraphs}${footer}${pixel}</div>`;

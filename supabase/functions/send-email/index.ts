@@ -4,6 +4,7 @@ import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.
 import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
+import { dailyLimitReached, INBOX_DAILY_CAP } from "../_shared/limits.ts";
 
 serve(async (req) => {
   const user = await requireUser(req);
@@ -17,11 +18,16 @@ serve(async (req) => {
   const id = investorId(investor_id);
   if (!(await hasPaidPlan(user.id))) throw new HttpError(402, "Sending starts when your plan starts, after the 7-day trial.");
 
-  const [{ data: inbox }, investor] = await Promise.all([
+  const [{ data: inbox }, investor, { data: startup }] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),
     loadInvestor(id),
+    admin.from("startups").select("calendar_url").eq("owner_id", user.id).maybeSingle(),
   ]);
   if (!inbox) throw new HttpError(409, "Your inbox is still being set up");
+
+  const limit = await dailyLimitReached(inbox.id);
+  if (limit === "inbox") throw new HttpError(429, `You have sent ${INBOX_DAILY_CAP} emails today, the most a new inbox can send. Queue this one and it goes out tomorrow morning.`);
+  if (limit === "account") throw new HttpError(429, "Centrale has reached today's sending limit. Queue this email and it goes out tomorrow morning.");
 
   if (await isSuppressed(investor.email)) {
     throw new HttpError(409, `${investor.full_name} has asked not to be emailed, or their address bounced.`);
@@ -32,7 +38,7 @@ serve(async (req) => {
   let result: OMSendResult;
   try {
     result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
-      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId, await optOutFooter(outreachId)) },
+      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId, await optOutFooter(outreachId), startup?.calendar_url) },
       idempotencyKey: idempotency_key ?? outreachId,
     });
   } catch (err) {

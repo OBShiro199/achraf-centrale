@@ -1,13 +1,14 @@
 // Runs every minute from pg_cron. Plans automatic follow-ups, then sends whatever in the
-// Outbox is due, staying inside OpenMail's limits (10 a minute and 20 cold sends a day per new inbox).
+// Outbox is due, staying inside OpenMail's limits (10 a minute, 20 cold sends a day per new inbox, and the
+// account-wide daily cap in _shared/limits.ts).
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
+import { accountDailyCap, INBOX_DAILY_CAP, sentToday as countSentToday, startOfUtcDay } from "../_shared/limits.ts";
 
-const DAILY_CAP = 20;
 const PER_RUN_PER_INBOX = 8;
 const PLAN_PER_RUN = 5;
 
@@ -23,11 +24,6 @@ interface Scheduled {
   attempts: number;
 }
 
-const startOfUtcDay = () => {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
 const tomorrowMorning = (offsetMinutes: number) => {
   const d = startOfUtcDay();
   d.setUTCDate(d.getUTCDate() + 1);
@@ -52,15 +48,15 @@ async function planFollowUps(dryRun: boolean) {
     const [investor, { data: profile }, { data: startup }] = await Promise.all([
       loadInvestor(Number(c.investor_id)).catch(() => null),
       admin.from("profiles").select("first_name").eq("id", c.owner_id).single(),
-      admin.from("startups").select("name, one_liner, traction").eq("owner_id", c.owner_id).single(),
+      admin.from("startups").select("name, one_liner, traction, calendar_url").eq("owner_id", c.owner_id).single(),
     ]);
     if (!investor) continue;
 
     const draft = await structured<{ body: string }>({
-      system: `You write short follow-ups from a founder to an investor who has not replied to a first email. 40 to 70 words. Friendly, no guilt, no "just bumping this". Add at most one new true fact from the startup context if one exists, otherwise simply ask whether a short call is worth it. Greeting line, one or two short paragraphs, sign off with the founder's first name. Never invent facts. ${HOUSE_STYLE}`,
+      system: `You write short follow-ups from a founder to an investor who has not replied to a first email. 40 to 70 words. Friendly, no guilt, no "just bumping this". Add at most one new true fact from the startup context if one exists, otherwise simply ask whether a short call is worth it. If a booking link is given, offer it written out in full on its own line. Greeting line, one or two short paragraphs, sign off with the founder's first name. Never invent facts. ${HOUSE_STYLE}`,
       content: [{
         type: "text",
-        text: `<startup>\nName: ${startup?.name}\nOne-liner: ${startup?.one_liner ?? ""}\nTraction: ${startup?.traction ?? "not stated"}\nFounder first name: ${profile?.first_name ?? ""}\n</startup>\n\n<first_email to="${investor.full_name}, ${investor.firm}" subject="${c.subject}">\n${c.body}\n</first_email>\n\nWrite the follow-up.`,
+        text: `<startup>\nName: ${startup?.name}\nOne-liner: ${startup?.one_liner ?? ""}\nTraction: ${startup?.traction ?? "not stated"}\nFounder first name: ${profile?.first_name ?? ""}\nBooking link: ${startup?.calendar_url ?? "none"}\n</startup>\n\n<first_email to="${investor.full_name}, ${investor.firm}" subject="${c.subject}">\n${c.body}\n</first_email>\n\nWrite the follow-up.`,
       }],
       schema: { type: "object", additionalProperties: false, required: ["body"], properties: { body: { type: "string" } } },
       effort: "low",
@@ -101,6 +97,9 @@ async function sendDue() {
   const log: string[] = [];
   const sentThisRun = new Map<string, number>();
   const sentToday = new Map<string, number>();
+  let accountSent: number | null = null;
+  const calendarUrls = new Map<string, string | null>();
+  const accountCap = await accountDailyCap();
 
   for (const e of (claimed ?? []) as Scheduled[]) {
     const requeue = (patch: Record<string, unknown>) =>
@@ -108,8 +107,10 @@ async function sendDue() {
 
     const { data: inbox } = await admin.from("inboxes").select("*").eq("owner_id", e.owner_id).eq("status", "active").maybeSingle();
     if (!inbox) {
-      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "No sending inbox yet" });
-      log.push(`${e.id}: no inbox, retry in 1h`);
+      const { count: paused } = await admin.from("inboxes").select("id", { count: "exact", head: true }).eq("owner_id", e.owner_id).eq("status", "suspended");
+      const why = paused ? "Sending is paused on this account. Write to us to resume it." : "No sending inbox yet";
+      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: why });
+      log.push(`${e.id}: ${paused ? "inbox paused" : "no inbox"}, retry in 1h`);
       continue;
     }
 
@@ -126,18 +127,16 @@ async function sendDue() {
       continue;
     }
 
-    if (!sentToday.has(inbox.id)) {
-      const { count } = await admin
-        .from("outreach_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("inbox_id", inbox.id)
-        .eq("direction", "outbound")
-        .gte("sent_at", startOfUtcDay().toISOString());
-      sentToday.set(inbox.id, count ?? 0);
-    }
-    if ((sentToday.get(inbox.id) ?? 0) >= DAILY_CAP) {
+    if (!sentToday.has(inbox.id)) sentToday.set(inbox.id, await countSentToday(inbox.id));
+    if ((sentToday.get(inbox.id) ?? 0) >= INBOX_DAILY_CAP) {
       await requeue({ send_after: tomorrowMorning(Math.floor(Math.random() * 90)), last_error: null });
       log.push(`${e.id}: daily limit, moved to tomorrow`);
+      continue;
+    }
+    accountSent ??= await countSentToday();
+    if (accountSent >= accountCap) {
+      await requeue({ send_after: tomorrowMorning(Math.floor(Math.random() * 90)), last_error: null });
+      log.push(`${e.id}: account daily limit (${accountCap}), moved to tomorrow`);
       continue;
     }
     if ((sentThisRun.get(inbox.id) ?? 0) >= PER_RUN_PER_INBOX) {
@@ -165,7 +164,11 @@ async function sendDue() {
       const recipient = await resolveRecipient(investor, e.owner_id);
       to = recipient.to;
       testMode = recipient.test;
-      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId, await optOutFooter(outreachId));
+      if (!calendarUrls.has(e.owner_id)) {
+        const { data: st } = await admin.from("startups").select("calendar_url").eq("owner_id", e.owner_id).maybeSingle();
+        calendarUrls.set(e.owner_id, st?.calendar_url ?? null);
+      }
+      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId, await optOutFooter(outreachId), calendarUrls.get(e.owner_id));
       result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
         idempotencyKey: `outbox-${e.id}`,
         body: e.kind === "follow_up" && e.thread_id
@@ -212,6 +215,7 @@ async function sendDue() {
     }
     sentThisRun.set(inbox.id, (sentThisRun.get(inbox.id) ?? 0) + 1);
     sentToday.set(inbox.id, (sentToday.get(inbox.id) ?? 0) + 1);
+    accountSent = (accountSent ?? 0) + 1;
     log.push(`${e.id}: sent ${e.kind}`);
   }
   return log;

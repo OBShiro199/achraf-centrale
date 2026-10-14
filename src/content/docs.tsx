@@ -63,6 +63,9 @@ export const DOCS: DocSection[] = [
           You create an account with your email, then start a 7-day free trial through Whop checkout. Whop asks for a card up front. Nothing is
           charged today. After day 7 the plan is billed monthly. The current price is shown on the <A href="/dashboard/billing">Billing</A> page.
         </P>
+        <P>
+          Sign up with a work or personal address. Temporary inbox services cannot open an account, and one network can open at most 3 accounts a day.
+        </P>
         <Callout tone="tip" title="Cancel any time before day 7">
           Go to Billing, press <B>Manage subscription</B> and cancel there. You are not charged if you cancel before the trial ends.
         </Callout>
@@ -353,10 +356,15 @@ export const DOCS: DocSection[] = [
           rows={[
             ["Emails a day from one inbox", "20, counted per UTC day"],
             ["Emails a run from one inbox", "8, with a run every minute"],
-            ["Over the daily limit", "Moves to the next morning, from 08:00 UTC"],
+            ["Emails a day across all Centrale founders", "150 for now, our email provider's account limit"],
+            ["Over either daily limit", "Moves to the next morning, from 08:00 UTC"],
           ]}
           caption="The limits let a new inbox warm up gradually, which keeps your emails out of spam folders."
         />
+        <P>
+          If the Centrale team pauses sending on your account, for example after a run of bounces, queued emails stay in the Outbox with a note
+          saying so, and send once sending is resumed.
+        </P>
         <H3>Replies</H3>
         <P>
           Replies arrive in <A href="/dashboard/inbox">Inbox</A>, and the investor is marked as replied in the database. We also email your login address
@@ -369,16 +377,63 @@ export const DOCS: DocSection[] = [
           least 30 minutes first, so you can edit or cancel it. It stops as soon as they reply. To stop all follow-ups, turn off{" "}
           <B>Send follow-ups automatically</B> in Settings.
         </P>
+        <H3>Booking link</H3>
+        <P>
+          Add a Calendly, Cal.com or other booking page in <A href="/dashboard/settings">Settings</A>. Drafts and follow-ups written after that offer
+          the link so investors can pick a time. In sent emails the link goes through a click counter, and your{" "}
+          <A href="/dashboard/docs#pipeline">Pipeline</A> shows which investors opened it. Booking a meeting does not move the investor to Meeting on
+          its own yet; move them yourself.
+        </P>
         <H3>Unsubscribes and bounces</H3>
         <P>
           Every first email and follow-up ends with a short unsubscribe line. An investor who unsubscribes is never emailed through Centrale again, by
           you or any other founder, and anything still queued to them is cancelled. Addresses that bounce or report spam are blocked the same way. The
           Outbox shows these as cancelled. Replies in a conversation carry no unsubscribe line.
         </P>
+        <P>
+          Investors can also leave the directory entirely at <A href="/remove">centralegtm.com/remove</A>. They confirm from a link sent to their
+          address, and are then hidden from search, their profile and contact details stop showing even if you saved them, and they join the
+          do-not-email list.
+        </P>
         <Callout tone="warning" title="Test mode">
           While Centrale is in testing, every email goes to a single test address instead of the investor. Each one carries a note at the top naming the
           real recipient, so testing can never reach a real investor.
         </Callout>
+      </>
+    ),
+  },
+
+  {
+    id: "pipeline",
+    title: "Pipeline",
+    summary: "Track every investor through your raise, with notes and next steps.",
+    body: (
+      <>
+        <P>
+          <A href="/dashboard/pipeline">Pipeline</A> is a board of every investor you are talking to. Investors you email appear on it on their own. To
+          add investors before you write to them, select them on the Investors page and choose <B>Add to pipeline</B>.
+        </P>
+        <Table
+          head={["Stage", "How investors get there"]}
+          rows={[
+            ["To contact", "Added by you from the Investors page"],
+            ["Contacted", "Automatically, when an email to them is sent"],
+            ["Replied", "Automatically, when they reply"],
+            ["Meeting, Diligence, Term sheet, Committed", "Set by you"],
+            ["Passed", "Set by you; emails and replies never move them out of it"],
+          ]}
+          caption="Activity only moves an investor forward. Moving someone back to an earlier stage than their emails show is not possible."
+        />
+        <P>
+          Open a card to change the stage, set a next step with a date, keep notes, or jump to the email thread. Next steps that are due today or
+          overdue are counted at the top of the board. Investors you added by hand and have not emailed can be removed from the board.
+        </P>
+        <H3>What is working</H3>
+        <P>
+          Below the board, <B>What is working</B> shows how many of the investors you emailed opened, replied and reached a meeting, and the same
+          rates by sector, stage, region and role. A group shows once you have emailed 3 or more investors in it, and the best reply rate is
+          highlighted. Opens are approximate, since some mail apps open every email they receive.
+        </P>
       </>
     ),
   },
@@ -574,6 +629,8 @@ export const DOCS: DocSection[] = [
             "Your uploaded and generated decks are private to you. Each download link expires after a minute.",
             "Your login email is used for sign in and reply notifications. Investors see your sending address, not your login email.",
             "Investors' contact details are never sent to your browser in full until you reveal or export them, and search limits stop the database being copied in bulk.",
+            "You can delete your account in Settings. It removes your profile, inbox, decks, brand files, saved investors and outreach history. Cancel a renewing plan in Billing first. Investors who unsubscribed stay on the do-not-email list.",
+            "Any investor can remove themselves from the directory at centralegtm.com/remove, after confirming from their own inbox.",
             "An hourly health check watches for failed or stuck sends, failed decks, failed background jobs and unusual AI spend, and alerts the Centrale team so problems are fixed before you notice them.",
           ]}
         />
@@ -650,6 +707,13 @@ export const DOCS: DocSection[] = [
               "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
               "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
+              "Investors can remove themselves from the directory at /remove.",
+              "Delete your account and its data from Settings.",
+              "Pipeline: a board of every investor in your raise, with stages, notes and next steps.",
+              "Signups from temporary inbox services are refused, and one network can open at most 3 accounts a day.",
+              "What is working: reply and meeting rates by sector, stage, region and role, on the Pipeline page.",
+              "Booking link: add your calendar page in Settings and drafts invite investors to pick a time.",
+              "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },
           {

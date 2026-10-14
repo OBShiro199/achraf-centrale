@@ -1,0 +1,41 @@
+# End-to-end tests in a real browser against a production build. Public pages run on every pull request. The
+# founder flow runs too when the E2E_EMAIL and E2E_PASSWORD secrets are set (a fixed tester account); paid
+# calls are faked in the browser, and anything it queues is cancelled. See e2e/README.md.
+name: E2E
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx next build
+      - name: Start the app
+        run: npx next start --port 3100 &
+      - run: npx wait-on@8.0.1 http://localhost:3100 --timeout 60000
+      - run: npx playwright test
+        env:
+          E2E_BASE_URL: http://localhost:3100
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

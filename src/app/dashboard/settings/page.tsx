@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Card, CardHeader, Pill, Settle } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
-import { createClient } from "@/lib/supabase/client";
+import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Profile, Startup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SetupInboxButton } from "@/components/app/setup-inbox";
@@ -80,6 +81,46 @@ function FollowUps() {
       </div>
       <div className="flex justify-end border-t border-line-2 px-5 py-3">
         <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || !dirty}>
+          {saving ? "Saving" : "Save"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function MeetingLink() {
+  const { startup, setStartup } = useApp();
+  const toast = useToast();
+  const [url, setUrl] = useState(startup.calendar_url ?? "");
+  const [saving, setSaving] = useState(false);
+  const clean = url.trim();
+  const valid = !clean || /^https:\/\/\S+$/.test(clean);
+  const dirty = clean !== (startup.calendar_url ?? "");
+
+  async function save() {
+    setSaving(true);
+    const { data, error } = await createClient()
+      .from("startups")
+      .update({ calendar_url: clean || null })
+      .eq("id", startup.id)
+      .select()
+      .single<Startup>();
+    setSaving(false);
+    if (error) return toast({ title: "Could not save", body: error.message, tone: "error" });
+    setStartup(data);
+    toast({ title: "Saved", body: clean ? "New drafts invite investors to book through this link." : "Drafts no longer include a booking link." });
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Booking link" sub="Investors can pick a time without the back and forth. Your Pipeline shows who opened it." />
+      <div className="p-5">
+        <Field label="Calendly, Cal.com or any booking page" hint={valid ? "Starts with https://. Used in drafts written after you save." : "Use the full link, starting with https://"}>
+          <Input value={url} placeholder="https://cal.com/your-name/20min" onChange={(e) => setUrl(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex justify-end border-t border-line-2 px-5 py-3">
+        <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || !dirty || !valid}>
           {saving ? "Saving" : "Save"}
         </Button>
       </div>
@@ -174,6 +215,10 @@ export default function SettingsPage() {
         <FollowUps />
       </Settle>
 
+      <Settle delay={200}>
+        <MeetingLink />
+      </Settle>
+
       <RunningCosts />
 
       <Settle delay={240}>
@@ -195,7 +240,66 @@ export default function SettingsPage() {
           </div>
         </Card>
       </Settle>
+
+      <Settle delay={300}>
+        <DeleteAccount />
+      </Settle>
     </div>
+  );
+}
+
+const DELETE_PHRASE = "delete my account";
+
+/** Deletes the account, inbox, decks, brand files and outreach history. Billing has to be cancelled first. */
+function DeleteAccount() {
+  const router = useRouter();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await callFunction("delete-account", { confirm: phrase });
+      await createClient().auth.signOut();
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setBusy(false);
+      toast({ title: "Account not deleted", body: err instanceof Error ? err.message : String(err), tone: "error" });
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Delete account" sub="Removes your profile, inbox, decks, saved investors and outreach history. This cannot be undone." />
+      {open ? (
+        <div className="space-y-4 p-5">
+          <p className="text-[13.5px] text-muted">
+            Cancel your plan in <a href="/dashboard/billing" className="underline">Billing</a> first if it is set to renew. Investors who unsubscribed
+            stay on the do-not-email list.
+          </p>
+          <Field label={`Type "${DELETE_PHRASE}" to confirm`}>
+            <Input value={phrase} onChange={(e) => setPhrase(e.target.value)} autoComplete="off" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" onClick={() => setOpen(false)} disabled={busy}>
+              Keep my account
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => void remove()} disabled={busy || phrase.trim().toLowerCase() !== DELETE_PHRASE}>
+              {busy ? "Deleting" : "Delete account"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end p-5">
+          <Button variant="danger" size="sm" onClick={() => setOpen(true)}>
+            Delete account
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -233,7 +337,14 @@ function RunningCosts() {
         <CardHeader
           title="Running costs"
           sub="Staff only. Claude and Firecrawl spend across every account in the last 30 days, estimated from usage."
-          action={<Pill tone="burgundy">Staff</Pill>}
+          action={
+            <span className="flex items-center gap-2">
+              <Link href="/dashboard/admin" className="text-[12.5px] text-burgundy underline-offset-2 hover:underline">
+                Admin console
+              </Link>
+              <Pill tone="burgundy">Staff</Pill>
+            </span>
+          }
         />
         <div className="grid gap-4 border-b border-line p-5 sm:grid-cols-3">
           <div>

@@ -36,6 +36,9 @@ function Unsubscribe() {
             <p className="mt-2 text-[14px] leading-relaxed text-muted">
               You will not receive any more emails sent through Centrale to this address, from this sender or any other.
             </p>
+            <p className="mt-3 text-[13px] text-muted">
+              To leave the investor directory as well, <a href="/remove" className="underline">remove yourself from Centrale</a>.
+            </p>
           </>
         ) : (
           <>

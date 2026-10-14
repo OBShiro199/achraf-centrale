@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-09";
+export const DOCS_UPDATED = "2026-10-14";
 
 export const DOCS: DocSection[] = [
   {
@@ -219,6 +219,11 @@ export const DOCS: DocSection[] = [
             <><B>One per firm</B> keeps the best-fit person at each firm.</>,
           ]}
         />
+        <H3>Email the top investors</H3>
+        <P>
+          Press <B>Email the top</B> and choose 10, 25 or 50. Centrale takes the best matches of your current search that have an email on file, in
+          the order the table is sorted, and opens the drafts for you to check before anything is queued.
+        </P>
         <H3>Search with AI</H3>
         <P>
           Describe the investors you want in a sentence, for example <Code>Seed fintech partners in London I can email</Code>. Claude turns it into
@@ -632,6 +637,10 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-10-14",
+            items: ["Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step."],
+          },
           {
             date: "2026-10-09",
             items: [

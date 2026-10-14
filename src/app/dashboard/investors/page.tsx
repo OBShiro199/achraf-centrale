@@ -13,7 +13,7 @@ import { ExportMenu } from "@/components/app/export-menu";
 import { InvestorDrawerBody } from "@/components/app/investor-drawer";
 import { InvestorTable } from "@/components/app/investor-table";
 import { sameSearch, savedPayload, SavedSearchesMenu, SaveSearchButton } from "@/components/app/saved-searches";
-import { SmartFilterBar } from "@/components/app/smart-filters";
+import { Popover, SmartFilterBar } from "@/components/app/smart-filters";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, Drawer, Empty, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
@@ -121,6 +121,8 @@ function Directory({ init }: { init: Init }) {
   const [openRow, setOpenRow] = useState<DirectoryRow | null>(null);
   const [composeFor, setComposeFor] = useState<{ id: number; full_name: string; email: string | null } | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
+  const [topOpen, setTopOpen] = useState(false);
+  const [topBusy, setTopBusy] = useState<number | null>(null);
   const [matching, setMatching] = useState(false);
   const [selectingAll, setSelectingAll] = useState(false);
   const [directorySize, setDirectorySize] = useState<number | null>(null);
@@ -328,6 +330,29 @@ function Directory({ init }: { init: Init }) {
     setBatchOpen(true);
   }
 
+  /** Drafts emails to the best N investors of the current search who have an email on file, in the current sort order. */
+  async function emailTop(n: number) {
+    setTopOpen(false);
+    if (sendingLocked) {
+      toast({ title: "Emailing starts with your plan", body: "Your inbox is ready. Sending starts when the 7-day trial ends and your plan starts." });
+      return;
+    }
+    setTopBusy(n);
+    try {
+      const top = await fetchMatching({ ...server, hasEmail: true }, sort, dir, Math.min(n, BATCH_LIMIT));
+      if (!top.length) {
+        toast({ title: "No investors with an email match this search", body: "Loosen a filter and try again.", tone: "error" });
+        return;
+      }
+      setSelected(new Map(top.map((r) => [r.id, r])));
+      setBatchOpen(true);
+    } catch (err) {
+      toast({ title: "Could not pick the top investors", body: err instanceof Error ? err.message : undefined, tone: "error" });
+    } finally {
+      setTopBusy(null);
+    }
+  }
+
   const anyFilter = hasAnyFilter(filters);
   const anySearch = anyFilter || !!debouncedQ.trim();
   const currentPayload = useMemo(() => savedPayload(filters, debouncedQ), [filters, debouncedQ]);
@@ -357,6 +382,36 @@ function Directory({ init }: { init: Init }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Popover
+            open={topOpen}
+            onClose={() => setTopOpen(false)}
+            label="Email the top investors"
+            width={260}
+            trigger={
+              <Button size="sm" variant="primary" data-trigger onClick={() => setTopOpen((o) => !o)} disabled={topBusy != null} aria-haspopup="menu" aria-expanded={topOpen}>
+                <Send className="h-3.5 w-3.5" />
+                {topBusy != null ? `Picking top ${topBusy}` : "Email the top"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            }
+          >
+            <div className="p-1.5" role="menu">
+              <p className="px-2 pb-1.5 pt-1 text-[12px] leading-snug text-label">
+                The best matches of this search with an email on file, in {sort === "match" ? "fit" : "the current"} order. You check every draft before it queues.
+              </p>
+              {[10, 25, 50].map((n) => (
+                <button
+                  key={n}
+                  role="menuitem"
+                  onClick={() => void emailTop(n)}
+                  className="flex w-full items-center justify-between rounded-[5px] px-2 py-1.5 text-left text-[13px] text-ink hover:bg-black/[0.04]"
+                >
+                  Top {n} investors
+                  <Send className="h-3.5 w-3.5 text-label" />
+                </button>
+              ))}
+            </div>
+          </Popover>
           <Button size="sm" onClick={() => void refreshPicks()} disabled={matching}>
             <Sparkles className={cn("h-3.5 w-3.5 text-vermilion", matching && "animate-pulse")} />
             {matching ? "Matching" : "Refresh Claude picks"}

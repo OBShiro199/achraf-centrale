@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Search, Send, Sparkles, Star, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Columns3, Search, Send, Sparkles, Star, X } from "lucide-react";
 import { AiSearch, AiSearchBanner } from "@/components/app/ai-search";
 import { BatchComposer, BATCH_LIMIT } from "@/components/app/batch-composer";
 import { ComposeModal } from "@/components/app/compose";
@@ -37,6 +37,7 @@ import {
   type SortKey,
 } from "@/lib/directory";
 import { FILTERS, fromSaved, hasAnyFilter, profileFilters, toServer, type Filters } from "@/lib/lead-filters";
+import { addToPipeline } from "@/lib/pipeline";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -685,6 +686,19 @@ function Directory({ init }: { init: Init }) {
                 className="flex h-8 items-center gap-1.5 rounded-[6px] border border-ivory/20 px-3 text-[13px] hover:border-ivory/40"
               >
                 <Star className="h-3.5 w-3.5" /> Save
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await addToPipeline(selectedRows.map((r) => r.id));
+                    toast({ title: `Added ${fmt(selectedRows.length)} to your pipeline`, body: "Anyone already there keeps their stage." });
+                  } catch (err) {
+                    toast({ title: "Could not add to your pipeline", body: err instanceof Error ? err.message : undefined, tone: "error" });
+                  }
+                }}
+                className="flex h-8 items-center gap-1.5 rounded-[6px] border border-ivory/20 px-3 text-[13px] hover:border-ivory/40"
+              >
+                <Columns3 className="h-3.5 w-3.5" /> Add to pipeline
               </button>
               <button
                 onClick={draftEmails}

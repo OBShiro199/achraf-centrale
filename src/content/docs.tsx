@@ -390,6 +390,35 @@ export const DOCS: DocSection[] = [
   },
 
   {
+    id: "pipeline",
+    title: "Pipeline",
+    summary: "Track every investor through your raise, with notes and next steps.",
+    body: (
+      <>
+        <P>
+          <A href="/dashboard/pipeline">Pipeline</A> is a board of every investor you are talking to. Investors you email appear on it on their own. To
+          add investors before you write to them, select them on the Investors page and choose <B>Add to pipeline</B>.
+        </P>
+        <Table
+          head={["Stage", "How investors get there"]}
+          rows={[
+            ["To contact", "Added by you from the Investors page"],
+            ["Contacted", "Automatically, when an email to them is sent"],
+            ["Replied", "Automatically, when they reply"],
+            ["Meeting, Diligence, Term sheet, Committed", "Set by you"],
+            ["Passed", "Set by you; emails and replies never move them out of it"],
+          ]}
+          caption="Activity only moves an investor forward. Moving someone back to an earlier stage than their emails show is not possible."
+        />
+        <P>
+          Open a card to change the stage, set a next step with a date, keep notes, or jump to the email thread. Next steps that are due today or
+          overdue are counted at the top of the board. Investors you added by hand and have not emailed can be removed from the board.
+        </P>
+      </>
+    ),
+  },
+
+  {
     id: "custom-domain",
     title: "Custom domain",
     summary: "Send from you@yourcompany.com: records to add, statuses and troubleshooting.",
@@ -660,6 +689,7 @@ export const DOCS: DocSection[] = [
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
               "Investors can remove themselves from the directory at /remove.",
               "Delete your account and its data from Settings.",
+              "Pipeline: a board of every investor in your raise, with stages, notes and next steps.",
               "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookOpen, Building2, Check, Copy, CreditCard, FileText, Globe, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, Check, Columns3, Copy, CreditCard, FileText, Globe, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/landing/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { brandConfetti } from "@/components/ui/kit";
@@ -19,6 +19,7 @@ const NAV = [
   { href: "/dashboard/investors", label: "Investors", icon: Users },
   { href: "/dashboard/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/dashboard/outbox", label: "Outbox", icon: Send },
+  { href: "/dashboard/pipeline", label: "Pipeline", icon: Columns3 },
   { href: "/dashboard/domain", label: "Custom domain", icon: Globe },
   { href: "/dashboard/deck", label: "Pitch deck", icon: FileText },
   { href: "/dashboard/profile", label: "Startup profile", icon: Building2 },
@@ -34,6 +35,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/investors": "Investors",
   "/dashboard/inbox": "Inbox",
   "/dashboard/outbox": "Outbox",
+  "/dashboard/pipeline": "Pipeline",
   "/dashboard/domain": "Custom domain",
   "/dashboard/deck": "Pitch deck",
   "/dashboard/profile": "Startup profile",

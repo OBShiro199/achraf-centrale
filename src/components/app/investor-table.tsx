@@ -48,7 +48,7 @@ function FitBar({ score, pick }: { score: number; pick: boolean }) {
         <div className={cn("h-full rounded-full", score >= 60 ? "bg-burgundy" : score >= 40 ? "bg-[#a8968c]" : "bg-[#d5c8ba]")} style={{ width: `${score}%` }} />
       </div>
       <span className="tabular w-6 text-right text-[12.5px] font-medium text-ink">{score}</span>
-      {pick && <Sparkles className="h-3.5 w-3.5 text-vermilion" aria-label="Claude pick" />}
+      {pick && <Sparkles className="h-3.5 w-3.5 text-vermilion" aria-label="One of your matches" />}
     </div>
   );
 }

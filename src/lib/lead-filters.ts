@@ -97,7 +97,7 @@ export const FILTERS: FilterDef[] = [
   { key: "hasLinkedin", label: "LinkedIn", group: "Contact data", kind: "bool", yes: "Has LinkedIn", no: "No LinkedIn" },
   { key: "status", label: "Outreach status", group: "Your activity", kind: "multi", options: STATUS_OPTIONS },
   { key: "saved", label: "Saved", group: "Your activity", kind: "bool", yes: "Saved by you", no: "Not saved" },
-  { key: "picks", label: "Claude picks", group: "Your activity", kind: "bool", yes: "Claude picks", no: "Not a Claude pick" },
+  { key: "picks", label: "Your matches", group: "Your activity", kind: "bool", yes: "Your matches", no: "Not one of your matches" },
   {
     key: "fit",
     label: "Fit score",

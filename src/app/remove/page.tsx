@@ -54,6 +54,9 @@ function Request() {
       <p className="mt-2 text-[14px] leading-relaxed text-muted">
         Centrale helps founders find and email investors. Enter the email address we hold for you and we will send it a link to confirm. Once you confirm, founders cannot find you or email you through Centrale.
       </p>
+      <p className="mt-2 text-[13px] text-muted">
+        How we hold investor details is explained in our <a href="/privacy#investors" className="underline">privacy policy</a>.
+      </p>
       <Field label="Your email" className="mt-5">
         <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>

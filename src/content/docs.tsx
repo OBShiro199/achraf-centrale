@@ -634,6 +634,10 @@ export const DOCS: DocSection[] = [
             "An hourly health check watches for failed or stuck sends, failed decks, failed background jobs and unusual AI spend, and alerts the Centrale team so problems are fixed before you notice them.",
           ]}
         />
+        <P>
+          The full detail is in the <A href="/privacy">privacy policy</A> and the <A href="/terms">terms of service</A>, including what you agree to when
+          you send emails through Centrale. Every cold email now links to the privacy policy next to the unsubscribe link.
+        </P>
       </>
     ),
   },
@@ -707,6 +711,7 @@ export const DOCS: DocSection[] = [
               "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
               "The investor database now holds only investors with an email address on file, about 134,000, so everyone you find can be emailed.",
               "Onboarding now ends with your first 10 investors, matched at your round and ranked by fit, listed on the last screen.",
+              "Terms of service and privacy policy pages, linked from signup, the site footer and every cold email.",
               "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
               "Investors can remove themselves from the directory at /remove.",

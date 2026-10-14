@@ -37,7 +37,8 @@ function Unsubscribe() {
               You will not receive any more emails sent through Centrale to this address, from this sender or any other.
             </p>
             <p className="mt-3 text-[13px] text-muted">
-              To leave the investor directory as well, <a href="/remove" className="underline">remove yourself from Centrale</a>.
+              To leave the investor directory as well, <a href="/remove" className="underline">remove yourself from Centrale</a>. Our{" "}
+              <a href="/privacy#investors" className="underline">privacy policy</a> explains what we hold.
             </p>
           </>
         ) : (

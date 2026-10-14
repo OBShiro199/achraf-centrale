@@ -1,4 +1,5 @@
 import { createClient, type User } from "npm:@supabase/supabase-js@2.117.1";
+import { allowedOrigin } from "./cors.ts";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
@@ -25,16 +26,26 @@ export class HttpError extends Error {
   }
 }
 
+/** The response with CORS headers for this request's origin; other sites get no Allow-Origin, so browsers refuse them. */
+function withCors(res: Response, req: Request) {
+  const headers = new Headers(res.headers);
+  const origin = allowedOrigin(req.headers.get("origin"));
+  if (origin) headers.set("Access-Control-Allow-Origin", origin);
+  else headers.delete("Access-Control-Allow-Origin");
+  headers.set("Vary", "Origin");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 /** Wraps a handler with CORS preflight, JSON errors and logging. */
 export function serve(handler: (req: Request) => Promise<Response>) {
   Deno.serve(async (req) => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+    if (req.method === "OPTIONS") return withCors(new Response("ok", { headers: corsHeaders }), req);
     try {
-      return await handler(req);
+      return withCors(await handler(req), req);
     } catch (err) {
-      if (err instanceof HttpError) return json({ error: err.message }, err.status);
+      if (err instanceof HttpError) return withCors(json({ error: err.message }, err.status), req);
       console.error(err);
-      return json({ error: err instanceof Error ? err.message : "Unexpected error" }, 500);
+      return withCors(json({ error: err instanceof Error ? err.message : "Unexpected error" }, 500), req);
     }
   });
 }

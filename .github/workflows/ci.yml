@@ -26,6 +26,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Route types
+        run: npx next typegen
       - name: Types
         run: npx tsc --noEmit -p .
       - name: Lint

@@ -41,6 +41,17 @@ export default function SignupPage() {
           <Link href="/login" className="text-ink underline decoration-line underline-offset-4 hover:decoration-ink">
             Log in
           </Link>
+          <span className="mt-2 block text-[12px] text-label">
+            By creating an account you agree to the{" "}
+            <Link href="/terms" className="underline decoration-line underline-offset-2 hover:text-ink">
+              terms of service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline decoration-line underline-offset-2 hover:text-ink">
+              privacy policy
+            </Link>
+            .
+          </span>
         </>
       }
     >

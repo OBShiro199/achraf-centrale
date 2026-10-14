@@ -33,7 +33,7 @@ export async function optOutFooter(outreachId: string) {
   const app = (await secret("APP_URL").catch(() => "https://www.centralegtm.com")).replace(/\/$/, "");
   const address = (await secret("COMPANY_POSTAL_ADDRESS").catch(() => "")).trim();
   const link = `${app}/unsubscribe?m=${encodeURIComponent(outreachId)}`;
-  return `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#8a8a8a">If you would rather not hear from me again, <a href="${escapeHtml(link)}" style="color:#8a8a8a">unsubscribe</a>.${address ? `<br>${escapeHtml(address)}` : ""}</p>`;
+  return `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#8a8a8a">If you would rather not hear from me again, <a href="${escapeHtml(link)}" style="color:#8a8a8a">unsubscribe</a>. Sent with Centrale (<a href="${escapeHtml(`${app}/privacy#investors`)}" style="color:#8a8a8a">privacy</a>).${address ? `<br>${escapeHtml(address)}` : ""}</p>`;
 }
 
 /** True when this address must never be emailed again (unsubscribed, bounced, complained or removed by hand). */

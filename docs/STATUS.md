@@ -44,7 +44,7 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 - [ ] Confirm the $149 price, set it in Whop and the `plans` table. Annual plan or not.
 - [ ] Confirm the rights to use and resell each investor data source; name who answers removal requests.
 - [ ] Legal review of live cold sending (UK PECR, GDPR, CAN-SPAM), then pick the date to turn on `OUTREACH_LIVE`.
-- [ ] Terms of service, privacy policy, data processing agreement, cookie notice (text from a lawyer; Claude can build the pages).
+- [ ] Lawyer review of the drafted /terms and /privacy pages (live, marked as awaiting legal review), plus a data processing agreement for founders. No cookie banner is needed while the site only uses sign-in cookies.
 - [ ] Company postal address for the email footer (`COMPANY_POSTAL_ADDRESS`).
 - [ ] Who handles support and where founders reach us (then Claude builds the help form to that address).
 - [ ] OpenMail Enterprise: ask now or at about 20 active founders.

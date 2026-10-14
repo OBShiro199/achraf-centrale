@@ -12,16 +12,16 @@ Last updated: 2026-10-14
 - Email the top 10, 25 or 50 of a search.
 - CI on every push: types, lint and build for the app; type check and tests for edge functions.
 
-## Built, not shipped yet
+## Shipped 2026-10-14
 
-Blocked because the Supabase connection in Claude's session only sees the "Decibels" project. Reconnect it to Centrale (`tldvqiqucfmlnkgxaufy`), then apply migrations and deploy functions in PR order. Each PR lists its exact steps.
+All 12 migrations (20261014100000 to 20261017120000) applied to `tldvqiqucfmlnkgxaufy` and recorded in the migration history; all 23 edge functions deployed with their login settings; merged to main in #1 and #5 (#5 replaced the stacked #2 to #4).
 
-| PR | Branch | Contents | State |
-|---|---|---|---|
-| #1 | `prd/phase-0-db` | Tester plan (no reveals or exports), unsubscribe link and do-not-email list, bounce handling, CORS locked to our sites, hourly health check emails | Draft, CI green, not applied |
-| #2 | `prd/phase-1` | Investor self-removal at /remove, founder account deletion, account-wide daily send cap, raise pipeline | Draft, stacked on #1, not applied |
-| #3 | `prd/phase-2` | Signup abuse limits, staff admin console (/dashboard/admin), outreach analytics, booking link with click tracking | Draft, stacked on #2, not applied |
-| #4 | `prd/phase-3` | Investor import command, end-to-end tests (public pages in CI, founder flow with faked paid calls), admin console actions, function and webhook failure alerts | Draft, stacked on #3, not applied |
+- Tester plan without reveals or exports; unsubscribe link, do-not-email list, bounce handling; CORS locked to our sites; hourly health check emails.
+- Investor self-removal at /remove; founder account deletion; account-wide daily send cap; raise pipeline.
+- Signup limits; staff admin console with actions; outreach analytics; booking link with click tracking.
+- Investor import command; end-to-end tests; edge function and webhook failure alerts.
+
+How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the account that owns Centrale. Apply migrations with `supabase db query --linked --project-ref tldvqiqucfmlnkgxaufy -f <file>` (wrapped in a transaction, plus a row in `supabase_migrations.schema_migrations`) and deploy with `supabase functions deploy <name> --project-ref tldvqiqucfmlnkgxaufy`, adding `--no-verify-jwt` for track-open, signup, openmail-webhook, generate-deck, process-outbox, stripe-webhook, whop-webhook, unsubscribe, investor-removal, meeting-link and ops-alerts. Merge stacked PRs one at a time without deleting a base branch that another PR still points at.
 
 ## Partly done
 
@@ -52,7 +52,6 @@ Blocked because the Supabase connection in Claude's session only sees the "Decib
 
 ## Needs Oliver
 
-- [ ] Reconnect the Supabase connector to Centrale's project so Claude can apply and deploy PRs #1 to #3.
 - [ ] Rotate the OpenMail, Whop and Dynadot keys that were shared in chat; store new ones only in Vault.
 - [ ] Custom SMTP for login emails (Resend or Postmark free tier) and set Supabase Auth Site URL and redirect URLs to www.centralegtm.com.
 - [ ] Run the old directory clean-up (`supabase/migrations/20261010100000_drop_old_directory.sql`) by hand.

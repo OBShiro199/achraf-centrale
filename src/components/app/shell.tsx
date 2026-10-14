@@ -36,6 +36,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/inbox": "Inbox",
   "/dashboard/outbox": "Outbox",
   "/dashboard/pipeline": "Pipeline",
+  "/dashboard/admin": "Admin",
   "/dashboard/domain": "Custom domain",
   "/dashboard/deck": "Pitch deck",
   "/dashboard/profile": "Startup profile",

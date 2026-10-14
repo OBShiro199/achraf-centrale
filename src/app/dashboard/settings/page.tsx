@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
@@ -292,7 +293,14 @@ function RunningCosts() {
         <CardHeader
           title="Running costs"
           sub="Staff only. Claude and Firecrawl spend across every account in the last 30 days, estimated from usage."
-          action={<Pill tone="burgundy">Staff</Pill>}
+          action={
+            <span className="flex items-center gap-2">
+              <Link href="/dashboard/admin" className="text-[12.5px] text-burgundy underline-offset-2 hover:underline">
+                Admin console
+              </Link>
+              <Pill tone="burgundy">Staff</Pill>
+            </span>
+          }
         />
         <div className="grid gap-4 border-b border-line p-5 sm:grid-cols-3">
           <div>

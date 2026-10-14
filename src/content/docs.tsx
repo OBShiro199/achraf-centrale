@@ -180,14 +180,14 @@ export const DOCS: DocSection[] = [
       <>
         <H3>Where the data comes from</H3>
         <P>
-          The database holds about 335,000 investors: partners, angels, principals and associates at venture firms, angel groups, accelerators, family
-          offices and private equity firms worldwide. Each one has an email address, a LinkedIn profile, or both. For each investor you see their job
+          The database holds about 134,000 investors: partners, angels, principals and associates at venture firms, angel groups, accelerators, family
+          offices and private equity firms worldwide. Every one has an email address on file, and many have a LinkedIn profile too. For each investor you see their job
           title, firm, firm industry, firm size, the year the firm was founded, location, the stages and sectors the firm is tagged with, the firm&apos;s
           specialties and its own description.
         </P>
         <P>
-          About 4 in 10 investors have an email address on file. Add the <B>Email: Has email</B> filter to see only investors you can write to; investors
-          without one can still be saved, and the Email button is off for them.
+          Every investor in the database has an email address on file, so you can write to anyone you find. Contact details stay partly hidden until
+          your plan starts or you reveal them.
         </P>
         <H3>Search box</H3>
         <P>
@@ -705,6 +705,7 @@ export const DOCS: DocSection[] = [
             date: "2026-10-14",
             items: [
               "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
+              "The investor database now holds only investors with an email address on file, about 134,000, so everyone you find can be emailed.",
               "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
               "Investors can remove themselves from the directory at /remove.",

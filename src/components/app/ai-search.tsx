@@ -173,7 +173,7 @@ export function AiSearch({
     setRun(null);
   };
 
-  const size = directorySize ? (Math.floor(directorySize / 1000) * 1000).toLocaleString("en-GB") : "335,000";
+  const size = directorySize ? (Math.floor(directorySize / 1000) * 1000).toLocaleString("en-GB") : "134,000";
   const steps = ["Reading your request", "Matching it to real filters", `Searching ${size} investors`, "Preparing your list"];
   const len = prompt.length;
 

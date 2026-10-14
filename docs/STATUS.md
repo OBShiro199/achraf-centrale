@@ -7,7 +7,7 @@ Last updated: 2026-10-14
 
 ## Live on www.centralegtm.com
 
-- Signup, onboarding (website scrape, profile, brand, inbox, Claude picks), pitch deck, investor directory (335k, 31 filters, AI search, saved searches), drafts, Outbox, follow-ups, inbox and replies, custom domains.
+- Signup, onboarding (website scrape, profile, brand, inbox, Claude picks), pitch deck, investor directory (133,773 investors, all with an email; 31 filters, AI search, saved searches), drafts, Outbox, follow-ups, inbox and replies, custom domains.
 - Test mode: every outreach email goes to oliverburt3@gmail.com (`OUTREACH_LIVE` off).
 - Email the top 10, 25 or 50 of a search.
 - CI on every push: types, lint and build for the app; type check and tests for edge functions.
@@ -25,6 +25,7 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 
 ## Partly done
 
+- **Investor directory size.** On 9 or 10 October (around the database lock fix) the 201,313 investors without an email were deleted from `investors_achraf`, leaving 133,773. On 14 October the search tables were brought in line and the filter counts refreshed. To bring LinkedIn-only investors back, reload them from the source file with `npm run import-investors` after the Supabase upgrade. The filter accuracy suite needs a sample under 1,000 now that every row has an email: `select * from private.test_lead_filters(900);` (32 of 32 pass).
 - **Health check alerts.** Covers sends, decks, cron jobs, spend, database size, the send cap, and edge function failures (any webhook failure, or 3 failures an hour elsewhere). Does not notice a webhook that stops arriving at all.
 - **Investor removal.** Hides the investor everywhere and suppresses the address. The source row in `investors_achraf` is kept; full erasure on request is a manual staff step. A future directory rebuild must skip `private.investor_removals`.
 - **Compliance footer.** Unsubscribe link is in. The postal address only appears once `COMPANY_POSTAL_ADDRESS` is set in Vault.

@@ -24,6 +24,13 @@ interface Snapshot {
   read_only: boolean;
 }
 
+/** Webhooks alert on any failure; other functions once they fail 3 times in an hour. */
+function functionProblems(errors: { fn: string; n: number; last: string }[]) {
+  return errors
+    .filter((e) => e.fn.endsWith("-webhook") || e.n >= 3)
+    .map((e) => ({ key: `fn:${e.fn}`, text: `${e.fn} failed ${e.n} time${e.n === 1 ? "" : "s"} in the last hour. Latest: ${e.last}` }));
+}
+
 function problems(s: Snapshot, dbLimitMb: number, sends: { sent: number; cap: number }) {
   const out: { key: string; text: string }[] = [];
   if (sends.sent >= sends.cap * 0.8) {
@@ -54,7 +61,8 @@ serve(async (req) => {
   const dbLimitMb = Number(await secret("OPS_DB_LIMIT_MB").catch(() => "")) || DEFAULT_DB_LIMIT_MB;
   const due: string[] = [];
   const sends = { sent: await sentToday(), cap: await accountDailyCap() };
-  for (const p of problems(snapshot, dbLimitMb, sends)) {
+  const { data: fnErrors } = await admin.rpc("function_error_counts");
+  for (const p of [...problems(snapshot, dbLimitMb, sends), ...functionProblems((fnErrors ?? []) as { fn: string; n: number; last: string }[])]) {
     const { data: send } = await admin.rpc("ops_alert_due", { p_key: p.key });
     if (send) due.push(p.text);
   }

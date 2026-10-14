@@ -361,6 +361,10 @@ export const DOCS: DocSection[] = [
           ]}
           caption="The limits let a new inbox warm up gradually, which keeps your emails out of spam folders."
         />
+        <P>
+          If the Centrale team pauses sending on your account, for example after a run of bounces, queued emails stay in the Outbox with a note
+          saying so, and send once sending is resumed.
+        </P>
         <H3>Replies</H3>
         <P>
           Replies arrive in <A href="/dashboard/inbox">Inbox</A>, and the investor is marked as replied in the database. We also email your login address

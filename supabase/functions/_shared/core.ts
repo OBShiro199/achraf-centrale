@@ -1,5 +1,6 @@
 import { createClient, type User } from "npm:@supabase/supabase-js@2.117.1";
 import { allowedOrigin } from "./cors.ts";
+import { functionName } from "./function-name.ts";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
@@ -37,15 +38,31 @@ function withCors(res: Response, req: Request) {
 }
 
 /** Wraps a handler with CORS preflight, JSON errors and logging. */
+/** Records failures the health check should see: every 5xx, and any 4xx from a webhook (often a bad secret). */
+async function recordFailure(req: Request, status: number, message: string) {
+  const fn = functionName(req);
+  if (status < 500 && !fn.endsWith("-webhook")) return;
+  try {
+    await admin.rpc("record_function_error", { p_fn: fn, p_status: status, p_message: message });
+  } catch (err) {
+    console.error("could not record function error", err);
+  }
+}
+
 export function serve(handler: (req: Request) => Promise<Response>) {
   Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return withCors(new Response("ok", { headers: corsHeaders }), req);
     try {
       return withCors(await handler(req), req);
     } catch (err) {
-      if (err instanceof HttpError) return withCors(json({ error: err.message }, err.status), req);
+      if (err instanceof HttpError) {
+        await recordFailure(req, err.status, err.message);
+        return withCors(json({ error: err.message }, err.status), req);
+      }
       console.error(err);
-      return withCors(json({ error: err instanceof Error ? err.message : "Unexpected error" }, 500), req);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      await recordFailure(req, 500, message);
+      return withCors(json({ error: message }, 500), req);
     }
   });
 }

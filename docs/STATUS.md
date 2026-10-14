@@ -21,17 +21,20 @@ Blocked because the Supabase connection in Claude's session only sees the "Decib
 | #1 | `prd/phase-0-db` | Tester plan (no reveals or exports), unsubscribe link and do-not-email list, bounce handling, CORS locked to our sites, hourly health check emails | Draft, CI green, not applied |
 | #2 | `prd/phase-1` | Investor self-removal at /remove, founder account deletion, account-wide daily send cap, raise pipeline | Draft, stacked on #1, not applied |
 | #3 | `prd/phase-2` | Signup abuse limits, staff admin console (/dashboard/admin), outreach analytics, booking link with click tracking | Draft, stacked on #2, not applied |
+| #4 | `prd/phase-3` | Investor import command, end-to-end tests (public pages in CI, founder flow with faked paid calls), admin console actions, function and webhook failure alerts | Draft, stacked on #3, not applied |
 
 ## Partly done
 
-- **Health check alerts.** Covers sends, decks, cron jobs, spend, database size and the send cap. Does not cover the Whop or OpenMail webhooks failing silently (they log but nothing counts their failures yet).
+- **Health check alerts.** Covers sends, decks, cron jobs, spend, database size, the send cap, and edge function failures (any webhook failure, or 3 failures an hour elsewhere). Does not notice a webhook that stops arriving at all.
 - **Investor removal.** Hides the investor everywhere and suppresses the address. The source row in `investors_achraf` is kept; full erasure on request is a manual staff step. A future directory rebuild must skip `private.investor_removals`.
 - **Compliance footer.** Unsubscribe link is in. The postal address only appears once `COMPANY_POSTAL_ADDRESS` is set in Vault.
 - **Search speed.** Default view is narrowed to the founder's profile so it loads, but wide searches stay slow until the database upgrade, then the 4 dropped search indexes need rebuilding and the keep-warm job turning back on.
 - **Booking link.** Drafts offer it and clicks are counted, but a booked meeting does not move the investor to Meeting. That needs Calendly or Cal.com webhooks, which means a provider account per founder or an OAuth app.
 - **Outreach analytics.** Rates by sector, stage, region and role. Not by email version yet, since drafts are not tagged with a version or template.
 - **Signup limits.** Per network and throwaway domains. Does not stop someone using many real Gmail addresses from different networks; Whop's card check is the backstop.
-- **Admin console.** Read only. No actions yet (change a plan, pause an inbox, add a suppression by hand); those are done in Supabase for now.
+- **Admin console.** Actions cover plan, inbox pause and manual address blocks. A manual plan change is overwritten by Whop's next webhook for that founder. No refunds, impersonation or deck re-runs.
+- **End-to-end tests.** Public pages run on every PR. The founder flow only runs once `E2E_EMAIL` and `E2E_PASSWORD` repository secrets exist for one fixed tester account that has finished onboarding (see `e2e/README.md`). Onboarding and deck generation are not covered, since both spend money.
+- **Investor import.** `npm run import-investors -- file.csv` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set. Adds new investors only; it does not update existing rows. New specialties are not added to keyword search until a full keyword rebuild (`select private.refresh_lead_keywords();` then every range, as in `20261009101000_lead_search_load_and_indexes.sql`).
 - **Daily send cap.** Defaults to 150 (OpenMail Pro, first 30 days). Raise `OPENMAIL_ACCOUNT_DAILY_CAP` in Vault to 500 once the account is past 30 days.
 
 ## Needs Achraf
@@ -73,7 +76,7 @@ Blocked because the Supabase connection in Claude's session only sees the "Decib
 
 ## Next up, no sign-off needed
 
-1. Investor import command (load a batch, rebuild search tables and facets, skip removed investors)
-2. End-to-end test of the founder flow with Claude and Firecrawl calls faked
-3. Admin console actions (change plan, pause inbox, suppress an address)
-4. Count Whop and OpenMail webhook failures in the health check
+1. Alert when the Whop or OpenMail webhooks go quiet for too long while there is activity
+2. Admin console: per-founder detail page (timeline of sends, replies, deck runs, spend)
+3. Update existing investors in the import command (match on email, refresh changed fields)
+4. Accessibility pass on the dashboard (keyboard focus, labels, contrast)

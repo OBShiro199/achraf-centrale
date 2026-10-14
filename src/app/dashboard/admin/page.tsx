@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AdminActions } from "@/components/app/admin-actions";
 import { Card, CardHeader, Empty, Pill, Settle, Skeleton } from "@/components/ui/kit";
 import { createClient } from "@/lib/supabase/client";
 import { cn, timeAgo } from "@/lib/utils";
@@ -76,11 +77,14 @@ function SendChart({ days }: { days: Overview["sending"]["by_day"] }) {
 export default function AdminPage() {
   const [data, setData] = useState<Overview | null | undefined>(undefined);
 
-  useEffect(() => {
-    void createClient()
-      .rpc("admin_overview")
-      .then(({ data: d, error }) => setData(error ? null : ((d as Overview | null) ?? null)));
+  const load = useCallback(async () => {
+    const { data: d, error } = await createClient().rpc("admin_overview");
+    setData(error ? null : ((d as Overview | null) ?? null));
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (data === undefined) {
     return (
@@ -187,6 +191,10 @@ export default function AdminPage() {
             <Stat label="Removal links pending" value={fmt(data.deliverability.removal_requests_pending)} />
           </div>
         </Card>
+      </Settle>
+
+      <Settle delay={140}>
+        <AdminActions onChanged={() => void load()} />
       </Settle>
 
       <Settle delay={160}>

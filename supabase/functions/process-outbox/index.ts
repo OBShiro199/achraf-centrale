@@ -107,8 +107,10 @@ async function sendDue() {
 
     const { data: inbox } = await admin.from("inboxes").select("*").eq("owner_id", e.owner_id).eq("status", "active").maybeSingle();
     if (!inbox) {
-      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "No sending inbox yet" });
-      log.push(`${e.id}: no inbox, retry in 1h`);
+      const { count: paused } = await admin.from("inboxes").select("id", { count: "exact", head: true }).eq("owner_id", e.owner_id).eq("status", "suspended");
+      const why = paused ? "Sending is paused on this account. Write to us to resume it." : "No sending inbox yet";
+      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: why });
+      log.push(`${e.id}: ${paused ? "inbox paused" : "no inbox"}, retry in 1h`);
       continue;
     }
 

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Card, CardHeader, Pill, Settle } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
-import { createClient } from "@/lib/supabase/client";
+import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Profile, Startup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SetupInboxButton } from "@/components/app/setup-inbox";
@@ -195,7 +195,66 @@ export default function SettingsPage() {
           </div>
         </Card>
       </Settle>
+
+      <Settle delay={300}>
+        <DeleteAccount />
+      </Settle>
     </div>
+  );
+}
+
+const DELETE_PHRASE = "delete my account";
+
+/** Deletes the account, inbox, decks, brand files and outreach history. Billing has to be cancelled first. */
+function DeleteAccount() {
+  const router = useRouter();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await callFunction("delete-account", { confirm: phrase });
+      await createClient().auth.signOut();
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setBusy(false);
+      toast({ title: "Account not deleted", body: err instanceof Error ? err.message : String(err), tone: "error" });
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Delete account" sub="Removes your profile, inbox, decks, saved investors and outreach history. This cannot be undone." />
+      {open ? (
+        <div className="space-y-4 p-5">
+          <p className="text-[13.5px] text-muted">
+            Cancel your plan in <a href="/dashboard/billing" className="underline">Billing</a> first if it is set to renew. Investors who unsubscribed
+            stay on the do-not-email list.
+          </p>
+          <Field label={`Type "${DELETE_PHRASE}" to confirm`}>
+            <Input value={phrase} onChange={(e) => setPhrase(e.target.value)} autoComplete="off" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" onClick={() => setOpen(false)} disabled={busy}>
+              Keep my account
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => void remove()} disabled={busy || phrase.trim().toLowerCase() !== DELETE_PHRASE}>
+              {busy ? "Deleting" : "Delete account"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end p-5">
+          <Button variant="danger" size="sm" onClick={() => setOpen(true)}>
+            Delete account
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -369,6 +369,12 @@ export const DOCS: DocSection[] = [
           least 30 minutes first, so you can edit or cancel it. It stops as soon as they reply. To stop all follow-ups, turn off{" "}
           <B>Send follow-ups automatically</B> in Settings.
         </P>
+        <H3>Unsubscribes and bounces</H3>
+        <P>
+          Every first email and follow-up ends with a short unsubscribe line. An investor who unsubscribes is never emailed through Centrale again, by
+          you or any other founder, and anything still queued to them is cancelled. Addresses that bounce or report spam are blocked the same way. The
+          Outbox shows these as cancelled. Replies in a conversation carry no unsubscribe line.
+        </P>
         <Callout tone="warning" title="Test mode">
           While Centrale is in testing, every email goes to a single test address instead of the investor. Each one carries a note at the top naming the
           real recipient, so testing can never reach a real investor.
@@ -639,7 +645,10 @@ export const DOCS: DocSection[] = [
         entries={[
           {
             date: "2026-10-14",
-            items: ["Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step."],
+            items: [
+              "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
+              "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
+            ],
           },
           {
             date: "2026-10-09",

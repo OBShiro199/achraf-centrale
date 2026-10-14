@@ -3,7 +3,7 @@
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
-import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
 
@@ -151,13 +151,21 @@ async function sendDue() {
       continue;
     }
 
+    if (await isSuppressed(investor.email)) {
+      await admin.from("scheduled_emails").update({ status: "cancelled", last_error: "Unsubscribed or bounced" }).eq("id", e.id);
+      log.push(`${e.id}: suppressed`);
+      continue;
+    }
+
     const outreachId = crypto.randomUUID();
     let result: OMSendResult;
     let to = investor.email;
+    let testMode = true;
     try {
       const recipient = await resolveRecipient(investor, e.owner_id);
       to = recipient.to;
-      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId);
+      testMode = recipient.test;
+      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId, await optOutFooter(outreachId));
       result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
         idempotencyKey: `outbox-${e.id}`,
         body: e.kind === "follow_up" && e.thread_id
@@ -166,7 +174,11 @@ async function sendDue() {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Send failed";
-      if (err instanceof OpenMailError && err.status === 429) {
+      if (err instanceof OpenMailError && err.code === "recipient_suppressed") {
+        // Bounced, complained or unsubscribed at OpenMail: never retry, and keep it off every future send.
+        if (!testMode) await suppress(investor.email, "bounce", { investor_id: investor.id });
+        await admin.from("scheduled_emails").update({ status: "cancelled", last_error: "Address can no longer receive email" }).eq("id", e.id);
+      } else if (err instanceof OpenMailError && err.status === 429) {
         await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "Rate limited, retrying in an hour" });
       } else if (e.attempts >= 3) {
         await admin.from("scheduled_emails").update({ status: "failed", last_error: msg }).eq("id", e.id);

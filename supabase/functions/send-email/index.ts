@@ -1,7 +1,7 @@
 // Sends a founder's email to an investor from the founder's OpenMail inbox.
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
-import { resolveRecipient, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { hasPaidPlan } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
 
@@ -23,15 +23,24 @@ serve(async (req) => {
   ]);
   if (!inbox) throw new HttpError(409, "Your inbox is still being set up");
 
+  if (await isSuppressed(investor.email)) {
+    throw new HttpError(409, `${investor.full_name} has asked not to be emailed, or their address bounced.`);
+  }
+
   const outreachId = crypto.randomUUID();
   const { to, test } = await resolveRecipient(investor, user.id);
   let result: OMSendResult;
   try {
     result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
-      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId) },
+      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId, await optOutFooter(outreachId)) },
       idempotencyKey: idempotency_key ?? outreachId,
     });
   } catch (err) {
+    if (err instanceof OpenMailError && err.code === "recipient_suppressed") {
+      // OpenMail refuses addresses that bounced, complained or unsubscribed; never try them again.
+      if (!test && investor.email) await suppress(investor.email, "bounce", { investor_id: investor.id });
+      throw new HttpError(409, `${investor.full_name}'s address can no longer receive email.`);
+    }
     if (err instanceof OpenMailError && err.status === 429) {
       throw new HttpError(429, "This inbox has hit its sending limit for now. New inboxes send 20 first emails a day while they warm up.");
     }

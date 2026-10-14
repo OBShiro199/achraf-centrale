@@ -574,6 +574,7 @@ export const DOCS: DocSection[] = [
             "Your uploaded and generated decks are private to you. Each download link expires after a minute.",
             "Your login email is used for sign in and reply notifications. Investors see your sending address, not your login email.",
             "Investors' contact details are never sent to your browser in full until you reveal or export them, and search limits stop the database being copied in bulk.",
+            "An hourly health check watches for failed or stuck sends, failed decks, failed background jobs and unusual AI spend, and alerts the Centrale team so problems are fixed before you notice them.",
           ]}
         />
       </>
@@ -648,6 +649,7 @@ export const DOCS: DocSection[] = [
             items: [
               "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
               "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
+              "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
             ],
           },
           {

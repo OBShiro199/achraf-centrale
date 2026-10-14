@@ -63,6 +63,9 @@ export const DOCS: DocSection[] = [
           You create an account with your email, then start a 7-day free trial through Whop checkout. Whop asks for a card up front. Nothing is
           charged today. After day 7 the plan is billed monthly. The current price is shown on the <A href="/dashboard/billing">Billing</A> page.
         </P>
+        <P>
+          Sign up with a work or personal address. Temporary inbox services cannot open an account, and one network can open at most 3 accounts a day.
+        </P>
         <Callout tone="tip" title="Cancel any time before day 7">
           Go to Billing, press <B>Manage subscription</B> and cancel there. You are not charged if you cancel before the trial ends.
         </Callout>
@@ -690,6 +693,7 @@ export const DOCS: DocSection[] = [
               "Investors can remove themselves from the directory at /remove.",
               "Delete your account and its data from Settings.",
               "Pipeline: a board of every investor in your raise, with stages, notes and next steps.",
+              "Signups from temporary inbox services are refused, and one network can open at most 3 accounts a day.",
               "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },

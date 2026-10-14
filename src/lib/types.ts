@@ -40,6 +40,7 @@ export interface Startup {
   onboarding_completed_at: string | null;
   auto_follow_up: boolean;
   follow_up_days: number;
+  calendar_url: string | null;
   /** Answers to the five deck questions, keyed by DECK_QUESTIONS keys. */
   deck_inputs: Partial<Record<DeckQuestionKey, string>> | null;
   deck_slides: Deck | null;

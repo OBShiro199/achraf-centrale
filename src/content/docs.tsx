@@ -373,6 +373,13 @@ export const DOCS: DocSection[] = [
           least 30 minutes first, so you can edit or cancel it. It stops as soon as they reply. To stop all follow-ups, turn off{" "}
           <B>Send follow-ups automatically</B> in Settings.
         </P>
+        <H3>Booking link</H3>
+        <P>
+          Add a Calendly, Cal.com or other booking page in <A href="/dashboard/settings">Settings</A>. Drafts and follow-ups written after that offer
+          the link so investors can pick a time. In sent emails the link goes through a click counter, and your{" "}
+          <A href="/dashboard/docs#pipeline">Pipeline</A> shows which investors opened it. Booking a meeting does not move the investor to Meeting on
+          its own yet; move them yourself.
+        </P>
         <H3>Unsubscribes and bounces</H3>
         <P>
           Every first email and follow-up ends with a short unsubscribe line. An investor who unsubscribes is never emailed through Centrale again, by
@@ -701,6 +708,7 @@ export const DOCS: DocSection[] = [
               "Pipeline: a board of every investor in your raise, with stages, notes and next steps.",
               "Signups from temporary inbox services are refused, and one network can open at most 3 accounts a day.",
               "What is working: reply and meeting rates by sector, stage, region and role, on the Pipeline page.",
+              "Booking link: add your calendar page in Settings and drafts invite investors to pick a time.",
               "Send now and the Outbox both respect the daily sending limits, so emails wait for the next morning instead of failing.",
             ],
           },

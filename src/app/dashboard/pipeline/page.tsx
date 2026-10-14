@@ -20,7 +20,13 @@ function due(on: string | null) {
 
 function Card({ card, onOpen }: { card: PipelineCard; onOpen: () => void }) {
   const d = due(card.next_step_on);
-  const activity = card.last_reply_at ? `Replied ${timeAgo(card.last_reply_at)}` : card.last_sent_at ? `Emailed ${timeAgo(card.last_sent_at)}` : null;
+  const activity = card.last_reply_at
+    ? `Replied ${timeAgo(card.last_reply_at)}`
+    : card.calendar_clicked_at
+      ? `Opened your booking link ${timeAgo(card.calendar_clicked_at)}`
+      : card.last_sent_at
+        ? `Emailed ${timeAgo(card.last_sent_at)}`
+        : null;
   return (
     <button onClick={onOpen} className="w-full rounded-[8px] border border-line bg-panel p-3 text-left transition-colors hover:border-[#cdbfb2]">
       <div className="truncate text-[13.5px] font-medium text-ink">{card.full_name}</div>
@@ -80,6 +86,7 @@ function Editor({ card, onSaved, onClose }: { card: PipelineCard; onSaved: () =>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {card.last_sent_at && <Pill>Emailed {timeAgo(card.last_sent_at)}</Pill>}
           {card.last_reply_at && <Pill tone="green">Replied {timeAgo(card.last_reply_at)}</Pill>}
+          {card.calendar_clicked_at && <Pill tone="amber">Opened booking link {timeAgo(card.calendar_clicked_at)}</Pill>}
         </div>
       </div>
       <Field label="Stage" hint="Emails and replies move investors forward on their own. Passed stays where you put it.">

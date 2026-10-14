@@ -88,6 +88,46 @@ function FollowUps() {
   );
 }
 
+function MeetingLink() {
+  const { startup, setStartup } = useApp();
+  const toast = useToast();
+  const [url, setUrl] = useState(startup.calendar_url ?? "");
+  const [saving, setSaving] = useState(false);
+  const clean = url.trim();
+  const valid = !clean || /^https:\/\/\S+$/.test(clean);
+  const dirty = clean !== (startup.calendar_url ?? "");
+
+  async function save() {
+    setSaving(true);
+    const { data, error } = await createClient()
+      .from("startups")
+      .update({ calendar_url: clean || null })
+      .eq("id", startup.id)
+      .select()
+      .single<Startup>();
+    setSaving(false);
+    if (error) return toast({ title: "Could not save", body: error.message, tone: "error" });
+    setStartup(data);
+    toast({ title: "Saved", body: clean ? "New drafts invite investors to book through this link." : "Drafts no longer include a booking link." });
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Booking link" sub="Investors can pick a time without the back and forth. Your Pipeline shows who opened it." />
+      <div className="p-5">
+        <Field label="Calendly, Cal.com or any booking page" hint={valid ? "Starts with https://. Used in drafts written after you save." : "Use the full link, starting with https://"}>
+          <Input value={url} placeholder="https://cal.com/your-name/20min" onChange={(e) => setUrl(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex justify-end border-t border-line-2 px-5 py-3">
+        <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || !dirty || !valid}>
+          {saving ? "Saving" : "Save"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { profile, setProfile, inbox } = useApp();
   const router = useRouter();
@@ -173,6 +213,10 @@ export default function SettingsPage() {
 
       <Settle delay={180}>
         <FollowUps />
+      </Settle>
+
+      <Settle delay={200}>
+        <MeetingLink />
       </Settle>
 
       <RunningCosts />

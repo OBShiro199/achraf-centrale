@@ -48,15 +48,15 @@ async function planFollowUps(dryRun: boolean) {
     const [investor, { data: profile }, { data: startup }] = await Promise.all([
       loadInvestor(Number(c.investor_id)).catch(() => null),
       admin.from("profiles").select("first_name").eq("id", c.owner_id).single(),
-      admin.from("startups").select("name, one_liner, traction").eq("owner_id", c.owner_id).single(),
+      admin.from("startups").select("name, one_liner, traction, calendar_url").eq("owner_id", c.owner_id).single(),
     ]);
     if (!investor) continue;
 
     const draft = await structured<{ body: string }>({
-      system: `You write short follow-ups from a founder to an investor who has not replied to a first email. 40 to 70 words. Friendly, no guilt, no "just bumping this". Add at most one new true fact from the startup context if one exists, otherwise simply ask whether a short call is worth it. Greeting line, one or two short paragraphs, sign off with the founder's first name. Never invent facts. ${HOUSE_STYLE}`,
+      system: `You write short follow-ups from a founder to an investor who has not replied to a first email. 40 to 70 words. Friendly, no guilt, no "just bumping this". Add at most one new true fact from the startup context if one exists, otherwise simply ask whether a short call is worth it. If a booking link is given, offer it written out in full on its own line. Greeting line, one or two short paragraphs, sign off with the founder's first name. Never invent facts. ${HOUSE_STYLE}`,
       content: [{
         type: "text",
-        text: `<startup>\nName: ${startup?.name}\nOne-liner: ${startup?.one_liner ?? ""}\nTraction: ${startup?.traction ?? "not stated"}\nFounder first name: ${profile?.first_name ?? ""}\n</startup>\n\n<first_email to="${investor.full_name}, ${investor.firm}" subject="${c.subject}">\n${c.body}\n</first_email>\n\nWrite the follow-up.`,
+        text: `<startup>\nName: ${startup?.name}\nOne-liner: ${startup?.one_liner ?? ""}\nTraction: ${startup?.traction ?? "not stated"}\nFounder first name: ${profile?.first_name ?? ""}\nBooking link: ${startup?.calendar_url ?? "none"}\n</startup>\n\n<first_email to="${investor.full_name}, ${investor.firm}" subject="${c.subject}">\n${c.body}\n</first_email>\n\nWrite the follow-up.`,
       }],
       schema: { type: "object", additionalProperties: false, required: ["body"], properties: { body: { type: "string" } } },
       effort: "low",
@@ -98,6 +98,7 @@ async function sendDue() {
   const sentThisRun = new Map<string, number>();
   const sentToday = new Map<string, number>();
   let accountSent: number | null = null;
+  const calendarUrls = new Map<string, string | null>();
   const accountCap = await accountDailyCap();
 
   for (const e of (claimed ?? []) as Scheduled[]) {
@@ -161,7 +162,11 @@ async function sendDue() {
       const recipient = await resolveRecipient(investor, e.owner_id);
       to = recipient.to;
       testMode = recipient.test;
-      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId, await optOutFooter(outreachId));
+      if (!calendarUrls.has(e.owner_id)) {
+        const { data: st } = await admin.from("startups").select("calendar_url").eq("owner_id", e.owner_id).maybeSingle();
+        calendarUrls.set(e.owner_id, st?.calendar_url ?? null);
+      }
+      const html = toTrackedHtml(recipient.test ? withTestNote(e.body, investor) : e.body, outreachId, await optOutFooter(outreachId), calendarUrls.get(e.owner_id));
       result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
         idempotencyKey: `outbox-${e.id}`,
         body: e.kind === "follow_up" && e.thread_id

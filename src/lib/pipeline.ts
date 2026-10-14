@@ -29,6 +29,7 @@ export interface PipelineCard {
   last_reply_at: string | null;
   thread_id: string | null;
   updated_at: string | null;
+  calendar_clicked_at: string | null;
 }
 
 export async function loadBoard(): Promise<PipelineCard[]> {

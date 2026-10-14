@@ -18,9 +18,10 @@ serve(async (req) => {
   const id = investorId(investor_id);
   if (!(await hasPaidPlan(user.id))) throw new HttpError(402, "Sending starts when your plan starts, after the 7-day trial.");
 
-  const [{ data: inbox }, investor] = await Promise.all([
+  const [{ data: inbox }, investor, { data: startup }] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),
     loadInvestor(id),
+    admin.from("startups").select("calendar_url").eq("owner_id", user.id).maybeSingle(),
   ]);
   if (!inbox) throw new HttpError(409, "Your inbox is still being set up");
 
@@ -37,7 +38,7 @@ serve(async (req) => {
   let result: OMSendResult;
   try {
     result = await openmail<OMSendResult>(`/v1/inboxes/${inbox.openmail_inbox_id}/send`, {
-      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId, await optOutFooter(outreachId)) },
+      body: { to, subject: subject.trim(), body: toTrackedHtml(test ? withTestNote(body, investor) : body, outreachId, await optOutFooter(outreachId), startup?.calendar_url) },
       idempotencyKey: idempotency_key ?? outreachId,
     });
   } catch (err) {

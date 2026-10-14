@@ -41,6 +41,7 @@ Revenue: ${label(REVENUE, startup.revenue_band)}
 Traction: ${startup.traction ?? "not stated"}
 Values: ${(startup.values ?? []).map((v: string) => label(VALUES, v)).join(", ") || "none stated"}
 Founder: ${founder}
+Booking link: ${startup.calendar_url ?? "none"}
 </startup>
 
 <investor>
@@ -55,7 +56,7 @@ Firm specialties: ${investor.specialties.slice(0, 25).join(", ")}
 </investor>`;
 
   const draft = await structured<{ subject: string; body: string }>({
-    system: `You write first emails from startup founders to investors. They are short, specific and easy to say yes to. Open with the single strongest genuine overlap between the startup and this investor (stage, sector, specialties or what the firm says about itself). The founder has already chosen to contact this investor, so never argue against the fit or apologise for it. Never claim the investor backed a company unless it is named above. Ask for a 20 minute call. Sign off with the founder's first name and company name. Never invent metrics, customers or names that are not in the startup context. Never use placeholders in brackets. ${HOUSE_STYLE}`,
+    system: `You write first emails from startup founders to investors. They are short, specific and easy to say yes to. Open with the single strongest genuine overlap between the startup and this investor (stage, sector, specialties or what the firm says about itself). The founder has already chosen to contact this investor, so never argue against the fit or apologise for it. Never claim the investor backed a company unless it is named above. Ask for a 20 minute call; if a booking link is given, offer it written out in full on its own line so they can pick a time. Sign off with the founder's first name and company name. Never invent metrics, customers or names that are not in the startup context. Never use placeholders in brackets. ${HOUSE_STYLE}`,
     content: [{ type: "text", text: `${context}\n\nWrite the email from ${founder} to ${investor.full_name}.` }],
     schema: SCHEMA,
     effort: "low",

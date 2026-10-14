@@ -34,7 +34,7 @@ export const DOCS: DocSection[] = [
         <Steps
           items={[
             { title: "Tell us your website", body: "We read your homepage and Claude writes your startup profile. You check it and correct anything that is off." },
-            { title: "Find investors who fit", body: "Search the investor database, filter it, and sort by a fit score from 0 to 100. Claude also shortlists 25 picks for you." },
+            { title: "Find investors who fit", body: "Search the investor database, filter it, and sort by a fit score from 0 to 100. Onboarding matches you with your first 10." },
             { title: "Write from your own inbox", body: "Choose investors, Claude drafts a first email to each one, you edit anything you like and queue them. They send from your address." },
             { title: "Follow up automatically", body: "If an investor has not replied after the number of days you choose, one short follow-up goes in the same thread." },
             { title: "Track replies", body: "Replies arrive in Inbox, the investor is marked as replied, and we email you a heads-up." },
@@ -45,7 +45,7 @@ export const DOCS: DocSection[] = [
           items={[
             { value: "7 days", label: "Free trial, card up front" },
             { value: "0 to 100", label: "Fit score for every investor" },
-            { value: "25", label: "Claude picks shortlisted for you" },
+            { value: "10", label: "Investors matched at onboarding" },
             { value: "20", label: "New emails a day per inbox" },
           ]}
         />
@@ -80,7 +80,7 @@ export const DOCS: DocSection[] = [
               The investor database with contact details truncated, for example <Code>j•••@firm.com</Code> and <Code>+1 201-•••-••••</Code>.
             </>,
             "Up to 500 investor rows, which is about 10 pages.",
-            "Claude picks, your shortlist of 25 investors.",
+            "Your first 10 investors, matched at your round during onboarding.",
             "Claude drafts of first emails, so you can read them before your plan starts.",
           ]}
         />
@@ -120,7 +120,7 @@ export const DOCS: DocSection[] = [
             { title: "Claude writes your profile", body: "A one-liner, a summary, your mission, what this raise is for, your sectors and the keywords investors will match on." },
             { title: "You review the answers", body: "Read it through and edit anything that is wrong. You can change all of it later on the Startup profile page." },
             { title: "We set up your inbox", body: <>Your sending inbox is created on an <Code>@omail.sh</Code> address. You can move it to your own domain later.</> },
-            { title: "We match investors and can draft your deck", body: "Claude picks your first 25 investors, and if you asked for one, Centrale starts on your pitch deck." },
+            { title: "We match investors and can draft your deck", body: "Centrale matches you with 10 investors at your round, and if you asked for one, starts on your pitch deck." },
           ]}
         />
         <Callout title="If you upload a deck">
@@ -137,7 +137,7 @@ export const DOCS: DocSection[] = [
     body: (
       <>
         <P>
-          Your startup profile is what Centrale knows about you. The fit score reads it to rank investors, Claude picks reads it to shortlist them, and
+          Your startup profile is what Centrale knows about you. The fit score reads it to rank investors and choose your matches, and
           Claude reads it again every time it drafts an email or a deck. A better profile gives better matches and better emails.
         </P>
         <Table
@@ -147,7 +147,7 @@ export const DOCS: DocSection[] = [
             ["Who you are", "Three or four sentences: who you are, what you sell, how it works and who buys it."],
             ["Mission", "One sentence, in your own terms where possible."],
             ["What this raise is for", "What the money funds and the next milestone."],
-            ["Keywords investors will match on", "Terms written from your website. Claude picks match keywords from these and your profile."],
+            ["Keywords investors will match on", "Terms written from your website. The fit score gives extra points to investors who list them."],
             ["Company name, headquarters, team size", "Your country counts toward the fit score."],
             ["Sectors", "30 fit points when an investor's firm is tagged with one of your sectors."],
             ["Values", "What you stand for. Claude uses them when it writes emails and your deck."],
@@ -165,7 +165,7 @@ export const DOCS: DocSection[] = [
           your own edits first.
         </P>
         <Callout tone="tip">
-          Claude picks are not rerun on every save. After a big change, such as a new round or a new sector, press <B>Refresh Claude picks</B> on the
+          Your matches are not rerun on every save. After a big change, such as a new round or a new sector, press <B>Refresh matches</B> on the
           Investors page.
         </Callout>
       </>
@@ -207,7 +207,7 @@ export const DOCS: DocSection[] = [
             ["Thesis", "Stage, exclude stages, sector focus, exclude sectors, specialties"],
             ["Location", "Region, country, exclude countries, state or county, city"],
             ["Contact data", "Email, phone, LinkedIn on file"],
-            ["Your activity", "Outreach status, saved, Claude picks, fit score, one per firm"],
+            ["Your activity", "Outreach status, saved, your matches, fit score, one per firm"],
           ]}
         />
         <H3>How filters combine</H3>
@@ -248,7 +248,7 @@ export const DOCS: DocSection[] = [
         </P>
         <H3>Sorting, counts and pages</H3>
         <P>
-          Results sort by fit score unless you choose name, firm, location, firm size, year founded or Claude picks order. Each page holds 50 rows. The
+          Results sort by fit score unless you choose name, firm, location, firm size, year founded or your matches order. Each page holds 50 rows. The
           count above the table is exact up to 10,000 and shows 10,000+ beyond that. You can page through the first 10,000 results of any search; the
           trial shows the first 500. Your filters, search and sort are kept while this tab is open.
         </P>
@@ -258,8 +258,8 @@ export const DOCS: DocSection[] = [
 
   {
     id: "fit-score",
-    title: "Fit score and Claude picks",
-    summary: "How the 0 to 100 score is worked out, and how Claude builds your shortlist.",
+    title: "Fit score and your matches",
+    summary: "How the 0 to 100 score is worked out, and how your 10 matches are chosen.",
     body: (
       <>
         <P>
@@ -279,17 +279,17 @@ export const DOCS: DocSection[] = [
             ["Private equity", "Minus 20 when you are raising pre-seed, seed, angel or Series A and the firm only does buyout, fund of funds, late stage or venture debt"],
           ]}
         />
-        <H3>Claude picks</H3>
+        <H3>Your matches</H3>
         <Steps
           items={[
-            { title: "Claude chooses your match keywords", body: "8 to 20 keywords, taken only from the specialties investors in the database actually list, most specific first." },
-            { title: "The database scores everyone", body: "Every investor gets a fit score with those keywords, and the top 60 are kept, one per firm." },
-            { title: "Claude shortlists 25", body: "Claude reads those 60 firms and keeps up to 25 that would plausibly invest at your stage, each with a one-line reason drawn from the investor's own data." },
+            { title: "Investors at your round", body: "Only investors tagged with the round you are raising, for example Pre-Seed or Series A, who have an email on file. One person per firm." },
+            { title: "Ranked by fit", body: "They are sorted by the fit score above, so investors in your sectors and your country come first." },
+            { title: "Your top 10", body: "The best 10 are saved as your matches, each with a short reason. If fewer than 10 match your exact round, the nearest rounds fill the rest." },
           ]}
         />
         <P>
-          Press <B>Refresh Claude picks</B> on the Investors page to run all three steps again, for example after you change your round or sectors. Add the
-          Claude picks filter to see only your shortlist.
+          This happens at the end of onboarding. Press <B>Refresh matches</B> on the Investors page to run it again, for example after you change your round
+          or sectors. Add the Your matches filter to see only them.
         </P>
       </>
     ),
@@ -675,7 +675,7 @@ export const DOCS: DocSection[] = [
           },
           {
             q: "How are investors matched?",
-            a: "Every investor gets a fit score from 0 to 100 from your sectors, their specialties, your stage, investor type, location and their role. Claude then reads the top 60 firms and shortlists 25.",
+            a: "Every investor gets a fit score from 0 to 100 from your sectors, their specialties, your stage, investor type, location and their role. Your 10 matches are the highest scores among investors at your round.",
           },
           {
             q: "Why did my email not send today?",
@@ -706,6 +706,7 @@ export const DOCS: DocSection[] = [
             items: [
               "Email the top: draft emails to the best 10, 25 or 50 investors of a search in one step.",
               "The investor database now holds only investors with an email address on file, about 134,000, so everyone you find can be emailed.",
+              "Onboarding now ends with your first 10 investors, matched at your round and ranked by fit, listed on the last screen.",
               "An unsubscribe line on every cold email, and a do-not-email list that bounces and unsubscribes feed.",
               "An hourly health check that alerts the Centrale team when sends, decks or background jobs fail.",
               "Investors can remove themselves from the directory at /remove.",
@@ -742,7 +743,7 @@ export const DOCS: DocSection[] = [
           {
             date: "2026-09-29",
             items: [
-              "The investor database, with filters, the fit score and Claude picks.",
+              "The investor database, with filters, the fit score and your matches.",
               "Reveal credits, export credits and exports.",
               "The Outbox and automatic follow-ups.",
               "Pitch decks as PDF.",

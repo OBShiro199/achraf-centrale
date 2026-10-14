@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Draw, ScribbleBurst, ScribbleCross, ScribbleTick } from "@/components/sketch/draw";
 import { Hand } from "@/components/sketch/hand";
+import { fetchMatching, type DirectoryRow } from "@/lib/directory";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Inbox, Startup } from "@/lib/types";
 import { BrandMark } from "@/components/landing/logo";
@@ -20,8 +21,6 @@ const OPTIONAL: TaskKey[] = ["inbox", "investors", "deck"];
 /** How long to hold the finish for the deck once everything else is done; after that it carries on in the background. */
 const DECK_GRACE_MS = 6000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** count_investors stops at 10,001, which means 10,000+. */
-const fitCount = (n: number) => (n > 10000 ? "10,000+" : n.toLocaleString("en-GB"));
 
 function StateIcon({ state }: { state: TaskState }) {
   if (state === "done") return <ScribbleTick className="h-5 w-5" immediate />;
@@ -109,7 +108,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
-  const [fits, setFits] = useState<{ total: number | null; strong: number | null } | null>(null);
+  const [matches, setMatches] = useState<DirectoryRow[] | null>(null);
   const started = useRef(false);
   const deckRun = useRef<Promise<void> | null>(null);
 
@@ -164,11 +163,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
       }
 
       set("match", "running");
-      // Counts stop at 10,001 (shown as 10,000+) and come back null if they took too long.
-      const count = (filters: Record<string, unknown>) =>
-        supabase.rpc("count_investors", { p_filters: filters }).then(({ data }) => (data as number | null) ?? null);
-      const [total, strong] = await Promise.all([count({}), count({ minScore: 60 })]);
-      setFits({ total, strong });
+      setMatches(await fetchMatching({ picks: true }, "picks", "asc", 10).catch(() => []));
       set("match", "done");
 
       // The inbox can be retried from the dashboard, so only the profile blocks finishing.
@@ -208,8 +203,8 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
     { key: "read", label: `Reading ${domain}` },
     { key: "profile", label: "Writing your startup profile" },
     { key: "inbox", label: "Setting up your inbox" },
-    { key: "investors", label: "Matching you with investors" },
-    { key: "match", label: "Scoring investors against your profile" },
+    { key: "investors", label: "Finding investors at your round" },
+    { key: "match", label: "Picking your first 10" },
     ...(wantsDeck ? [{ key: "deck" as const, label: "Drafting your pitch deck" }] : []),
   ];
 
@@ -281,13 +276,27 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
                   )}
                 </div>
                 <div>
-                  <p className="text-[12px] text-label">Investors scored</p>
+                  <p className="text-[12px] text-label">Your investors</p>
                   <p className="mt-0.5 text-[13.5px] font-medium text-ink">
-                    {fits && fits.total != null
-                      ? `${fitCount(fits.total)} scored${fits.strong != null ? `, ${fitCount(fits.strong)} strong fits` : ""}`
-                      : "Scored and ready"}
+                    {matches?.length ? `${matches.length} matched` : "Ready on the Investors page"}
                   </p>
                 </div>
+                {!!matches?.length && (
+                  <ol className="col-span-2 divide-y divide-line-2 border-t border-line">
+                    {matches.map((m, i) => (
+                      <li key={m.id} className="flex gap-3 py-2">
+                        <span className="tabular w-4 shrink-0 pt-px text-[12px] text-label">{i + 1}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13.5px] font-medium text-ink">
+                            {m.full_name}
+                            {m.firm && <span className="font-normal text-muted">, {m.firm}</span>}
+                          </span>
+                          {m.pick_why && <span className="block text-[12.5px] leading-snug text-muted">{m.pick_why}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
                 {wantsDeck && (
                   <div className="col-span-2 flex items-center gap-2.5 border-t border-line pt-3">
                     <span className="flex h-5 w-5 items-center justify-center">

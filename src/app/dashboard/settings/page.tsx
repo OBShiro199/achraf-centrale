@@ -309,8 +309,8 @@ const FEATURES: Record<string, string> = {
   site_scrape: "Website scrape",
   brand_scrape: "Brand refresh",
   profile: "Profile writing",
-  match_keywords: "Matching keywords",
-  match_shortlist: "Claude picks",
+  match_keywords: "Match keywords (retired)",
+  match_shortlist: "Match shortlist (retired)",
   email_draft: "Email drafts",
   follow_up_draft: "Follow-up drafts",
 };

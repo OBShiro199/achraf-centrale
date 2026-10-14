@@ -50,7 +50,7 @@ const SORTS: { value: SortKey; label: string; dir: SortDir }[] = [
   { value: "location", label: "Location", dir: "asc" },
   { value: "size", label: "Firm size", dir: "desc" },
   { value: "founded", label: "Year founded", dir: "desc" },
-  { value: "picks", label: "Claude picks order", dir: "asc" },
+  { value: "picks", label: "Your matches order", dir: "asc" },
 ];
 const defaultDir = (k: SortKey) => SORTS.find((s) => s.value === k)?.dir ?? "desc";
 const PAGE_SIZE = 50;
@@ -301,7 +301,7 @@ function Directory({ init }: { init: Init }) {
     setMatching(true);
     try {
       const res = await callFunction<{ count: number }>("match-investors", {});
-      toast({ title: `${res.count} Claude picks ready`, body: "Sort by Claude picks order, or add the Claude picks filter to see only them." });
+      toast({ title: `${res.count} matches ready`, body: "Add the Your matches filter to see only them, or sort by Your matches order." });
       invalidateCounts();
       void reload();
     } catch (err) {
@@ -415,7 +415,7 @@ function Directory({ init }: { init: Init }) {
           </Popover>
           <Button size="sm" onClick={() => void refreshPicks()} disabled={matching}>
             <Sparkles className={cn("h-3.5 w-3.5 text-vermilion", matching && "animate-pulse")} />
-            {matching ? "Matching" : "Refresh Claude picks"}
+            {matching ? "Matching" : "Refresh matches"}
           </Button>
           <ExportMenu
             total={count}

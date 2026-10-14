@@ -172,7 +172,7 @@ export function InvestorDrawerBody({
         {row.pick_why && (
           <div className="mt-4 rounded-[8px] border border-[#ecdcbf] bg-amber-soft/60 px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-[12px] font-semibold text-amber">
-              <Sparkles className="h-3.5 w-3.5" /> Claude pick{row.pick_rank != null ? ` #${row.pick_rank}` : ""}
+              <Sparkles className="h-3.5 w-3.5" /> Your match{row.pick_rank != null ? ` #${row.pick_rank}` : ""}
               {row.pick_fit ? <span className="font-normal text-label">, fit {row.pick_fit} of 5</span> : null}
             </p>
             <p className="mt-1 text-[13.5px] leading-relaxed text-body">{row.pick_why}</p>

@@ -10,7 +10,7 @@ const caveat = Caveat({ variable: "--font-caveat", subsets: ["latin"], weight: [
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Centrale: bulk VC applications, one platform",
+  title: "Centrale: find the right investors, get the meeting",
   description:
     "Centrale reads your website, builds your startup profile, matches you with investors and sends from an inbox that is live the moment you sign up.",
   openGraph: { images: ["/brand/banner.png"] },

@@ -65,7 +65,7 @@ body::after {
 
 /* Brand focus ring instead of the browser default. */
 :where(button, a, [role="button"], input, textarea, select):focus-visible {
-  outline: 2px solid rgba(57, 28, 37, 0.28);
+  outline: 2px solid rgba(57, 28, 37, 0.55);
   outline-offset: 2px;
 }
 

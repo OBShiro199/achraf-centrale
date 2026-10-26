@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-14";
+export const DOCS_UPDATED = "2026-10-26";
 
 export const DOCS: DocSection[] = [
   {
@@ -650,6 +650,10 @@ export const DOCS: DocSection[] = [
       <Faq
         items={[
           {
+            q: "I forgot my password. What do I do?",
+            a: "On the log in page press Forgot your password?, enter your login email and open the link we send in the same browser. It works once, for an hour. Choose a new password and you are signed in.",
+          },
+          {
             q: "Why do my emails go to a test address?",
             a: "Centrale is in testing, so every email goes to one test inbox with a note naming the investor it was for. No real investor receives anything until live sending is switched on.",
           },
@@ -705,6 +709,14 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-10-26",
+            items: [
+              "Password reset: Forgot your password? on the log in page.",
+              "Onboarding ends with a button to your 10 matches, and Home lists them in rank order.",
+              "Clearer pages when a link is broken or something goes wrong.",
+            ],
+          },
           {
             date: "2026-10-14",
             items: [

@@ -5,7 +5,7 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 const PROTECTED = ["/dashboard", "/onboarding", "/start"];
 // Pages that need a trial or plan; accounts without one are sent to /start to add a card.
 const NEEDS_PLAN = ["/dashboard", "/onboarding"];
-const AUTH_PAGES = ["/login", "/signup"];
+const AUTH_PAGES = ["/login", "/signup", "/forgot"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

@@ -13,7 +13,15 @@ export const metadata: Metadata = {
   title: "Centrale: find the right investors, get the meeting",
   description:
     "Centrale reads your website, builds your startup profile, matches you with investors and sends from an inbox that is live the moment you sign up.",
-  openGraph: { images: ["/brand/banner.png"] },
+  applicationName: "Centrale",
+  openGraph: {
+    type: "website",
+    siteName: "Centrale",
+    title: "Centrale: find the right investors, get the meeting",
+    description: "Centrale matches founders with investors at their round, drafts every email for review and sends from an inbox set up for them.",
+    images: [{ url: "/brand/banner.png", width: 2172, height: 724, alt: "Centrale. Your next round starts here." }],
+  },
+  twitter: { card: "summary_large_image", images: ["/brand/banner.png"] },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

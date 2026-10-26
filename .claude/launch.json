@@ -20,6 +20,17 @@
         "3100"
       ],
       "port": 3100
+    },
+    {
+      "name": "prod-3100",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "start",
+        "--port",
+        "3100"
+      ],
+      "port": 3100
     }
   ]
 }

@@ -18,7 +18,7 @@ const steps = [
   {
     n: "03",
     title: "Get matched",
-    body: "Investors outside your stage or geography drop out, then the rest are scored on sector, stage and thesis.",
+    body: "Your 10 best-fit investors at your round, ranked on sector, thesis and location, each with a reason.",
     time: "instant",
   },
   {

@@ -3,7 +3,7 @@
 What is live, what is built but not shipped, what is waiting on someone, and what was left out on purpose.
 Keep this in step with the PRD (claude.ai/code/artifact/aca85a1b-767a-48ff-a275-aaa8ac14f6cc) and update it with every PR.
 
-Last updated: 2026-10-14
+Last updated: 2026-10-26
 
 ## Live on www.centralegtm.com
 
@@ -54,7 +54,8 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 ## Needs Oliver
 
 - [ ] Rotate the OpenMail, Whop and Dynadot keys that were shared in chat; store new ones only in Vault.
-- [ ] Custom SMTP for login emails (Resend or Postmark free tier) and set Supabase Auth Site URL and redirect URLs to www.centralegtm.com.
+- [ ] Custom SMTP for login emails (Resend) and set Supabase Auth Site URL to https://www.centralegtm.com, with redirect URLs `https://www.centralegtm.com/**` and `https://centralegtm.com/**`. Password reset (live since 26 October) depends on both: without the redirect URL the reset link lands on the home page instead of /reset.
+- [ ] Log the Supabase CLI back in to the account that owns Centrale (`supabase login`) when Claude needs to ship database changes; on 26 October it was signed in to a different account.
 - [ ] Run the old directory clean-up (`supabase/migrations/20261010100000_drop_old_directory.sql`) by hand.
 - [ ] A database connection secret in GitHub, if we want the migration drift check in CI.
 
@@ -76,7 +77,8 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 
 ## Next up, no sign-off needed
 
-1. Alert when the Whop or OpenMail webhooks go quiet for too long while there is activity
-2. Admin console: per-founder detail page (timeline of sends, replies, deck runs, spend)
-3. Update existing investors in the import command (match on email, refresh changed fields)
-4. Accessibility pass on the dashboard (keyboard focus, labels, contrast)
+1. Filter recruitment and placement firms out of matching (needs database access; see Needs Oliver)
+2. Alert when the Whop or OpenMail webhooks go quiet for too long while there is activity
+3. Admin console: per-founder detail page (timeline of sends, replies, deck runs, spend)
+4. Update existing investors in the import command (match on email, refresh changed fields)
+5. Accessibility pass on the dashboard (keyboard focus, labels, contrast)

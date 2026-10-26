@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/shell";
 import { AppProvider } from "@/components/app/context";
 import { createClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
 import type { DashboardStats, Inbox, Profile, Startup } from "@/lib/types";
+
+export const metadata: Metadata = { title: "Home: Centrale" };
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const supabase = await createClient();

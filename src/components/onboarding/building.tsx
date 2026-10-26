@@ -317,12 +317,28 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
               </div>
             </div>
             <div className="mt-8 flex flex-col items-center gap-3">
-              <Button variant="primary" size="lg" onClick={() => router.push("/dashboard")}>
-                Open your dashboard
-              </Button>
-              <Hand className="text-[20px]" tilt={-2}>
-                next: send your first email
-              </Hand>
+              {matches?.length ? (
+                <>
+                  <Button variant="primary" size="lg" onClick={() => router.push("/dashboard/investors?picks=1")}>
+                    See your {matches.length} investors
+                  </Button>
+                  <button onClick={() => router.push("/dashboard")} className="text-[13.5px] text-muted underline decoration-faint underline-offset-4 hover:text-ink">
+                    Open your dashboard instead
+                  </button>
+                  <Hand className="text-[20px]" tilt={-2}>
+                    next: press Email the top
+                  </Hand>
+                </>
+              ) : (
+                <>
+                  <Button variant="primary" size="lg" onClick={() => router.push("/dashboard")}>
+                    Open your dashboard
+                  </Button>
+                  <Hand className="text-[20px]" tilt={-2}>
+                    next: send your first email
+                  </Hand>
+                </>
+              )}
             </div>
           </motion.div>
         )}

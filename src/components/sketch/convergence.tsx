@@ -6,7 +6,7 @@ import { RoughStrokes, type Stroke } from "./rough";
 import { Draw } from "./draw";
 
 /**
- * The brand banner's idea, drawn in pencil: many applications flowing into one Centrale hub.
+ * The brand banner's idea, drawn in pencil: the right investors coming together into one raise.
  * Cards draw themselves, the connecting lines follow, then the mark assembles in the hub.
  */
 export function Convergence({ className, immediate }: { className?: string; immediate?: boolean }) {
@@ -75,7 +75,7 @@ export function Convergence({ className, immediate }: { className?: string; imme
           <Draw d="M300 268 C 316 282, 350 284, 372 272" color="#d94a38" width={1.8} immediate={immediate} delay={2.5} duration={0.6} />
         </g>
         <text x={296} y={300} className="hand" fontSize={19} fill="#d94a38">
-          one platform
+          your raise
         </text>
       </motion.g>
     </svg>

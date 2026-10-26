@@ -36,7 +36,14 @@ function LoginForm() {
       <Field label="Email">
         <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
       </Field>
-      <Field label="Password">
+      <Field
+        label="Password"
+        hint={
+          <Link href="/forgot" className="underline decoration-line underline-offset-2 hover:text-ink">
+            Forgot your password?
+          </Link>
+        }
+      >
         <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
       <FormError>{error}</FormError>

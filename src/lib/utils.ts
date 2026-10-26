@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 
 export const BRAND = "Centrale";
-export const TAGLINE = "Bulk VC applications. One platform.";
+export const TAGLINE = "Find the right investors. Get the meeting.";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);

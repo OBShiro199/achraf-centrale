@@ -120,7 +120,7 @@ export default function HomePage() {
   }, [messages, signedUpAt]);
 
   const loading = !stats;
-  const saved = stats?.investors_saved ?? 0;
+  const matched = (top ?? []).filter((r) => r.pick_rank != null).length;
 
   const steps = [
     { done: startup.analysis_status === "done", label: "Profile written", note: "From your website", href: "/dashboard/profile" },
@@ -130,8 +130,8 @@ export default function HomePage() {
       note: inbox ? (ent && !ent.can_send ? "Sending starts with your plan" : "Sending live") : "Needs setting up",
       href: inbox ? "/dashboard/domain" : "/dashboard/settings",
     },
-    { done: saved >= 3, label: "Save 3 investors", note: `${Math.min(saved, 3)} of 3 saved`, href: "/dashboard/investors" },
-    { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors" },
+    { done: matched > 0, label: "Investors matched", note: matched ? "At your round, best fit first" : "From your round and sectors", href: "/dashboard/investors?picks=1" },
+    { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors?picks=1" },
     { done: (stats?.investors_replied ?? 0) > 0, label: "Get first reply", note: "We email you", href: "/dashboard/inbox" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -271,11 +271,11 @@ export default function HomePage() {
           <Settle delay={240}>
             <Card>
               <CardHeader
-                title="Best-fit investors"
-                sub="Claude's shortlist first, then the highest fit scores"
+                title="Your matches"
+                sub="Investors at your round, best fit first"
                 action={
-                  <ButtonLink href="/dashboard/investors" size="sm" variant="ghost">
-                    All investors <ArrowRight className="h-3.5 w-3.5" />
+                  <ButtonLink href="/dashboard/investors?picks=1" size="sm" variant="ghost">
+                    See all <ArrowRight className="h-3.5 w-3.5" />
                   </ButtonLink>
                 }
               />

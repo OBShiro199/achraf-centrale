@@ -10,12 +10,13 @@ export function useTopMatches(limit = 5) {
   const [rows, setRows] = useState<DirectoryRow[] | null>(null);
   const load = useCallback(async () => {
     const supabase = createClient();
-    // Claude's shortlist leads when there is one; otherwise the plain fit score order.
+    // The founder's matches, in rank order: a lookup of 10 rows. Only without matches does it fall back to
+    // ranking the directory by fit score, which is much slower.
     const { count: picks } = await supabase.from("investor_matches").select("investor_id", { count: "exact", head: true });
     const { data } = await supabase.rpc("search_investors", {
-      p_filters: { onePerFirm: true },
+      p_filters: picks ? { picks: true } : { onePerFirm: true, hasEmail: true },
       p_sort: picks ? "picks" : "match",
-      p_dir: "desc",
+      p_dir: picks ? "asc" : "desc",
       p_limit: limit,
       p_offset: 0,
     });

@@ -4,8 +4,8 @@
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
-import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
-import { hasPaidPlan } from "../_shared/inbox.ts";
+import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { noSendingReason, sendingAllowance } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
 import { accountDailyCap, INBOX_DAILY_CAP, sentToday as countSentToday, startOfUtcDay } from "../_shared/limits.ts";
 
@@ -99,6 +99,7 @@ async function sendDue() {
   const sentToday = new Map<string, number>();
   let accountSent: number | null = null;
   const calendarUrls = new Map<string, string | null>();
+  const allowances = new Map<string, Awaited<ReturnType<typeof sendingAllowance>>>();
   const accountCap = await accountDailyCap();
 
   for (const e of (claimed ?? []) as Scheduled[]) {
@@ -114,10 +115,12 @@ async function sendDue() {
       continue;
     }
 
-    // Trials and lapsed plans keep their queue; it sends once the plan is paid.
-    if (!(await hasPaidPlan(e.owner_id))) {
-      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "Sending starts when your plan starts" });
-      log.push(`${e.id}: no paid plan, retry in 1h`);
+    // Trials send their first few emails; past that, and on lapsed plans, the queue waits for the plan to start.
+    if (!allowances.has(e.owner_id)) allowances.set(e.owner_id, await sendingAllowance(e.owner_id));
+    const allowance = allowances.get(e.owner_id)!;
+    if (!allowance.can_send) {
+      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: noSendingReason(allowance) });
+      log.push(`${e.id}: no sending allowance, retry in 1h`);
       continue;
     }
 
@@ -153,6 +156,12 @@ async function sendDue() {
     if (await isSuppressed(investor.email)) {
       await admin.from("scheduled_emails").update({ status: "cancelled", last_error: "Unsubscribed or bounced" }).eq("id", e.id);
       log.push(`${e.id}: suppressed`);
+      continue;
+    }
+    if (!(await domainAcceptsMail(investor.email))) {
+      await suppress(investor.email, "bounce", { investor_id: investor.id });
+      await admin.from("scheduled_emails").update({ status: "cancelled", last_error: "This email domain no longer takes email" }).eq("id", e.id);
+      log.push(`${e.id}: dead domain`);
       continue;
     }
 
@@ -216,6 +225,10 @@ async function sendDue() {
     sentThisRun.set(inbox.id, (sentThisRun.get(inbox.id) ?? 0) + 1);
     sentToday.set(inbox.id, (sentToday.get(inbox.id) ?? 0) + 1);
     accountSent = (accountSent ?? 0) + 1;
+    if (allowance.trial_left !== null) {
+      allowance.trial_left -= 1;
+      allowance.can_send = allowance.trial_left > 0;
+    }
     log.push(`${e.id}: sent ${e.kind}`);
   }
   return log;

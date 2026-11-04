@@ -404,9 +404,13 @@ export interface Entitlements {
   /** pending = account made, no card yet; trialing = 7 days with a card on file; active = paid. */
   status: "pending" | "trialing" | "active" | "past_due" | "canceled" | "expired";
   active: boolean;
-  /** A paid plan: sending, reveals and exports. */
+  /** A paid plan: unlimited sending, reveals and exports. */
   paid: boolean;
+  /** True on a paid plan, or in a running trial until its trial emails are used. */
   can_send: boolean;
+  /** Trial emails left (null on a paid plan), out of trial_sends_total. */
+  trial_sends_left: number | null;
+  trial_sends_total: number;
   manage_url: string | null;
   trial_ends_at: string | null;
   period_start: string;
@@ -422,6 +426,19 @@ export interface Entitlements {
   searches_per_minute: number;
   /** Whole days left in the trial, worked out when loaded. */
   trial_days_left: number | null;
+}
+
+/** One line on whether this founder can send, for composers and the home checklist. */
+export function sendingNote(ent: Entitlements | null) {
+  if (!ent) return null;
+  if (ent.paid) return null;
+  if (!ent.can_send) {
+    return ent.trial_sends_left === 0
+      ? `You have sent your ${ent.trial_sends_total} trial emails. The rest send when your plan starts.`
+      : "Sending starts with your plan.";
+  }
+  const left = ent.trial_sends_left ?? 0;
+  return `${left} of ${ent.trial_sends_total} trial email${ent.trial_sends_total === 1 ? "" : "s"} left.`;
 }
 
 /** The founder's plan, limits and what is left this period. */

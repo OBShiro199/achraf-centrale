@@ -1,8 +1,7 @@
 // Hourly health check from pg_cron. Emails staff (OPS_ALERT_EMAIL, default oliverburt3@gmail.com) from the
 // system inbox when something needs a look. Each problem emails at most once every 6 hours.
 import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
-import { escapeHtml } from "../_shared/mail.ts";
-import { openmail } from "../_shared/openmail.ts";
+import { emailStaff } from "../_shared/staff.ts";
 import { accountDailyCap, sentToday } from "../_shared/limits.ts";
 
 /** Above this, a day's Claude and Firecrawl spend across all founders is worth a look. */
@@ -22,7 +21,13 @@ interface Snapshot {
   top_spender_24h: { email: string | null; usd: number } | null;
   db_size_mb: number;
   read_only: boolean;
+  /** Live sends and permanent bounces over 7 days, across every inbox and for inboxes bouncing too often. */
+  bounces: { sent: number; bounced: number };
+  bounce_inboxes: { address: string; sent: number; bounced: number }[];
 }
+
+/** Mailbox providers start filtering a sender at around 2 to 3% bounces; OpenMail suspends inboxes above that. */
+const BOUNCE_ALERT_RATE = 0.03;
 
 /** Webhooks alert on any failure; other functions once they fail 3 times in an hour. */
 function functionProblems(errors: { fn: string; n: number; last: string }[]) {
@@ -35,6 +40,13 @@ function problems(s: Snapshot, dbLimitMb: number, sends: { sent: number; cap: nu
   const out: { key: string; text: string }[] = [];
   if (sends.sent >= sends.cap * 0.8) {
     out.push({ key: "account_cap", text: `${sends.sent} of OpenMail's ${sends.cap} daily account sends are used. Past the cap, emails wait until tomorrow; ask OpenMail about Enterprise.` });
+  }
+  if (s.bounces.sent >= 50 && s.bounces.bounced / s.bounces.sent > BOUNCE_ALERT_RATE) {
+    const pct = Math.round((s.bounces.bounced / s.bounces.sent) * 1000) / 10;
+    out.push({ key: "bounce_rate", text: `${pct}% of emails bounced in the last 7 days (${s.bounces.bounced} of ${s.bounces.sent}). Above 3% risks every founder's delivery; check the directory's addresses.` });
+  }
+  for (const i of s.bounce_inboxes) {
+    out.push({ key: `bounce_inbox:${i.address}`, text: `${i.address} had ${i.bounced} of ${i.sent} emails bounce in 7 days. Consider pausing it in the admin console.` });
   }
   if (s.read_only) out.push({ key: "read_only", text: "The database is read-only: saving, sending and signups are failing." });
   if (s.db_size_mb > dbLimitMb * 0.9) out.push({ key: "db_size", text: `The database is ${s.db_size_mb} MB, close to its limit.` });
@@ -68,17 +80,11 @@ serve(async (req) => {
   }
   if (!due.length) return json({ ok: true, alerts: 0, snapshot });
 
-  const to = (await secret("OPS_ALERT_EMAIL").catch(() => "oliverburt3@gmail.com")).trim();
-  const app = await secret("APP_URL").catch(() => "https://www.centralegtm.com");
-  await openmail(`/v1/inboxes/${await secret("OPENMAIL_SYSTEM_INBOX_ID")}/send`, {
-    idempotencyKey: `ops-${new Date().toISOString().slice(0, 13)}`,
-    body: {
-      to,
-      subject: `Centrale: ${due.length} thing${due.length === 1 ? "" : "s"} to check`,
-      body: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#141414">
-<p>The hourly health check found:</p><ul>${due.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>
-<p style="color:#777;font-size:12px">Each problem is emailed at most once every 6 hours. Running costs are in ${escapeHtml(app)}/dashboard/settings.</p></div>`,
-    },
-  });
+  await emailStaff(
+    `Centrale: ${due.length} thing${due.length === 1 ? "" : "s"} to check`,
+    "The hourly health check found these. Each problem is emailed at most once every 6 hours.",
+    due,
+    `ops-${new Date().toISOString().slice(0, 13)}`,
+  );
   return json({ ok: true, alerts: due.length });
 });

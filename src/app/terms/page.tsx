@@ -37,7 +37,7 @@ export default function TermsPage() {
             "Plans start with a 7-day free trial. Payment is handled by Whop, which asks for a card at checkout. Nothing is charged during the trial.",
             "After the trial your plan renews every month at the price shown at checkout and on the Billing page, until you cancel.",
             "Cancel at any time from Billing. If you cancel during the trial you are not charged. If you cancel later, your plan runs to the end of the period you have paid for and does not renew.",
-            "Sending emails, full contact details and exports start when your paid plan starts, not during the trial.",
+            "The trial includes 10 emails sent from your inbox, follow-ups included. Unlimited sending within the daily limits, full contact details and exports start when your paid plan starts.",
             "Plan limits (reveals, exports, deck generations, search depth) are listed in the docs and reset each billing period. Unused amounts do not roll over.",
             "We may change prices. We will tell you at least 30 days before a change affects your next renewal, and you can cancel before it does.",
           ]}

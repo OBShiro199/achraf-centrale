@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-26";
+export const DOCS_UPDATED = "2026-11-04";
 
 export const DOCS: DocSection[] = [
   {
@@ -81,21 +81,20 @@ export const DOCS: DocSection[] = [
             </>,
             "Up to 500 investor rows, which is about 10 pages.",
             "Your first 10 investors, matched at your round during onboarding.",
-            "Claude drafts of first emails, so you can read them before your plan starts.",
+            "Claude drafts of first emails, and 10 emails sent from your inbox (follow-ups count towards the 10).",
           ]}
         />
         <H3>What starts when your plan starts</H3>
         <Bullets
           items={[
-            "Sending emails from your inbox.",
-            "Automatic follow-ups.",
+            "Sending with no trial cap, up to the daily limits.",
             "Revealing full contact details, 2,500 a month.",
             "Exports, 2,500 export credits a month.",
             "The full investor database with no row limit.",
           ]}
         />
         <P>
-          Emails you queue during the trial wait in the Outbox and send once your plan starts. See <A href="/dashboard/docs#plans-and-limits">Plans and
+          Once your 10 trial emails have gone, anything else you queue waits in the Outbox and sends once your plan starts. See <A href="/dashboard/docs#plans-and-limits">Plans and
           limits</A> for every number side by side.
         </P>
       </>
@@ -341,7 +340,7 @@ export const DOCS: DocSection[] = [
       <>
         <P>
           Each founder gets one sending inbox, provided by OpenMail and created during onboarding. Investors see its address and your name on every email.
-          Sending starts when your plan starts.
+          The trial sends 10 emails; after that, sending carries on when your plan starts.
         </P>
         <H3>How the Outbox works</H3>
         <Steps
@@ -389,6 +388,11 @@ export const DOCS: DocSection[] = [
           Every first email and follow-up ends with a short unsubscribe line. An investor who unsubscribes is never emailed through Centrale again, by
           you or any other founder, and anything still queued to them is cancelled. Addresses that bounce or report spam are blocked the same way. The
           Outbox shows these as cancelled. Replies in a conversation carry no unsubscribe line.
+        </P>
+        <P>
+          A bounce is caught when the delivery report comes back, usually within minutes: the email shows as bounced and the address joins the
+          do-not-email list. Before sending, Centrale also checks that the address&apos;s domain still takes email; if the firm&apos;s domain has
+          gone, the email is cancelled instead of bouncing. Out-of-office replies do not count as a reply, so your follow-up still goes out.
         </P>
         <P>
           Investors can also leave the directory entirely at <A href="/remove">centralegtm.com/remove</A>. They confirm from a link sent to their
@@ -572,7 +576,7 @@ export const DOCS: DocSection[] = [
           head={["", "Trial", "Plan"]}
           rows={[
             ["Sending inbox", <>Yes, on <Code>@omail.sh</Code>; custom domain setup allowed</>, "Yes"],
-            ["Sending and follow-ups", "No", "Yes, 20 new emails a day per inbox while it warms up"],
+            ["Sending and follow-ups", "10 emails in total", "Yes, 20 new emails a day per inbox while it warms up"],
             ["Investor rows", "500", "Unlimited"],
             ["Rows per page", "Up to 50", "Up to 100"],
             ["Contact reveals", "0", "2,500 a month"],
@@ -658,8 +662,8 @@ export const DOCS: DocSection[] = [
             a: "Centrale is in testing, so every email goes to one test inbox with a note naming the investor it was for. No real investor receives anything until live sending is switched on.",
           },
           {
-            q: "Why can I not send during the trial?",
-            a: "Sending starts when your plan starts, after the 7-day trial. You can read Claude's drafts and queue emails now; they wait in the Outbox until then.",
+            q: "How many emails can I send during the trial?",
+            a: "10, follow-ups included, so you can see replies come in before you pay. After that, emails you queue wait in the Outbox and send when your plan starts. The composer shows how many trial emails are left.",
           },
           {
             q: "How long does domain verification take?",
@@ -709,6 +713,15 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-11-04",
+            items: [
+              "The trial now sends 10 emails, follow-ups included. The composer shows how many are left.",
+              "Bounces are caught as soon as the delivery report arrives, and the address is never emailed again.",
+              "Emails to firms whose email domain no longer exists are cancelled before they can bounce.",
+              "Out-of-office replies no longer count as a reply, so your follow-up still goes out.",
+            ],
+          },
           {
             date: "2026-10-26",
             items: [

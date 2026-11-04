@@ -212,7 +212,7 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-5 py-3">
         <p className="max-w-[460px] text-[12px] text-label">
           {locked
-            ? "Queueing and sending start with your plan, after the 7-day trial. You can read every draft now."
+            ? "Sending needs a trial or a plan. You can read every draft now."
             : inbox
               ? "Queued emails send from your inbox, up to 20 new emails a day. Anything over rolls to the next morning."
               : "Your inbox is not set up yet. Emails will wait in the Outbox until it is."}

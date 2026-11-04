@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-26";
+export const DOCS_UPDATED = "2026-11-04";
 
 export const DOCS: DocSection[] = [
   {
@@ -81,21 +81,19 @@ export const DOCS: DocSection[] = [
             </>,
             "Up to 500 investor rows, which is about 10 pages.",
             "Your first 10 investors, matched at your round during onboarding.",
-            "Claude drafts of first emails, so you can read them before your plan starts.",
+            "Sending from your inbox and automatic follow-ups, with the same daily limits as the plan.",
           ]}
         />
         <H3>What starts when your plan starts</H3>
         <Bullets
           items={[
-            "Sending emails from your inbox.",
-            "Automatic follow-ups.",
             "Revealing full contact details, 2,500 a month.",
             "Exports, 2,500 export credits a month.",
             "The full investor database with no row limit.",
           ]}
         />
         <P>
-          Emails you queue during the trial wait in the Outbox and send once your plan starts. See <A href="/dashboard/docs#plans-and-limits">Plans and
+          See <A href="/dashboard/docs#plans-and-limits">Plans and
           limits</A> for every number side by side.
         </P>
       </>
@@ -341,7 +339,7 @@ export const DOCS: DocSection[] = [
       <>
         <P>
           Each founder gets one sending inbox, provided by OpenMail and created during onboarding. Investors see its address and your name on every email.
-          Sending starts when your plan starts.
+          Sending works from the first day of your trial.
         </P>
         <H3>How the Outbox works</H3>
         <Steps
@@ -391,13 +389,17 @@ export const DOCS: DocSection[] = [
           Outbox shows these as cancelled. Replies in a conversation carry no unsubscribe line.
         </P>
         <P>
+          A bounce is caught when the delivery report comes back, usually within minutes: the email shows as bounced and the address joins the
+          do-not-email list. Before sending, Centrale also checks that the address&apos;s domain still takes email; if the firm&apos;s domain has
+          gone, the email is cancelled instead of bouncing. Out-of-office replies do not count as a reply, so your follow-up still goes out.
+        </P>
+        <P>
           Investors can also leave the directory entirely at <A href="/remove">centralegtm.com/remove</A>. They confirm from a link sent to their
           address, and are then hidden from search, their profile and contact details stop showing even if you saved them, and they join the
           do-not-email list.
         </P>
-        <Callout tone="warning" title="Test mode">
-          While Centrale is in testing, every email goes to a single test address instead of the investor. Each one carries a note at the top naming the
-          real recipient, so testing can never reach a real investor.
+        <Callout tone="warning" title="Emails go to real investors">
+          Every email you send or queue goes to the investor&apos;s real address, in your name. Read each draft before it goes.
         </Callout>
       </>
     ),
@@ -572,7 +574,7 @@ export const DOCS: DocSection[] = [
           head={["", "Trial", "Plan"]}
           rows={[
             ["Sending inbox", <>Yes, on <Code>@omail.sh</Code>; custom domain setup allowed</>, "Yes"],
-            ["Sending and follow-ups", "No", "Yes, 20 new emails a day per inbox while it warms up"],
+            ["Sending and follow-ups", "Yes, same limits as the plan", "Yes, 20 new emails a day per inbox while it warms up"],
             ["Investor rows", "500", "Unlimited"],
             ["Rows per page", "Up to 50", "Up to 100"],
             ["Contact reveals", "0", "2,500 a month"],
@@ -654,12 +656,8 @@ export const DOCS: DocSection[] = [
             a: "On the log in page press Forgot your password?, enter your login email and open the link we send in the same browser. It works once, for an hour. Choose a new password and you are signed in.",
           },
           {
-            q: "Why do my emails go to a test address?",
-            a: "Centrale is in testing, so every email goes to one test inbox with a note naming the investor it was for. No real investor receives anything until live sending is switched on.",
-          },
-          {
-            q: "Why can I not send during the trial?",
-            a: "Sending starts when your plan starts, after the 7-day trial. You can read Claude's drafts and queue emails now; they wait in the Outbox until then.",
+            q: "Can I send during the trial?",
+            a: "Yes. Sending and follow-ups work from the first day of your trial, within the same daily limits as the plan.",
           },
           {
             q: "How long does domain verification take?",
@@ -709,6 +707,16 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-11-04",
+            items: [
+              "Live sending is on: emails now go to the investors you write to.",
+              "Sending and follow-ups work during the trial.",
+              "Bounces are caught as soon as the delivery report arrives, and the address is never emailed again.",
+              "Emails to firms whose email domain no longer exists are cancelled before they can bounce.",
+              "Out-of-office replies no longer count as a reply, so your follow-up still goes out.",
+            ],
+          },
           {
             date: "2026-10-26",
             items: [

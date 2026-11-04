@@ -55,6 +55,42 @@ export async function suppress(email: string, reason: "unsubscribe" | "bounce" |
 
 export { escapeHtml };
 
+const mailDomains = new Map<string, boolean>();
+
+/**
+ * False only when DNS says the address's domain cannot take email: the domain does not exist, or it has neither
+ * MX nor A records, or it publishes a "null MX" saying it takes no email. Any lookup problem counts as true, so a DNS hiccup never blocks a send. Free, and catches
+ * the dead domains of firms that closed or renamed, which are a common source of bounces in old lists.
+ */
+export async function domainAcceptsMail(email: string) {
+  const domain = email.split("@")[1]?.trim().toLowerCase();
+  if (!domain) return false;
+  if (mailDomains.has(domain)) return mailDomains.get(domain)!;
+  const lookup = async (type: "MX" | "A") => {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=${type}`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) throw new Error(`DNS ${res.status}`);
+    return (await res.json()) as { Status: number; Answer?: { type: number; data: string }[] };
+  };
+  let ok = true;
+  try {
+    const mx = await lookup("MX");
+    const mxRecords = mx.Answer?.filter((a) => a.type === 15) ?? [];
+    if (mx.Status === 3) ok = false; // NXDOMAIN: the domain does not exist
+    else if (mxRecords.length && mxRecords.every((a) => /^0\s+\.?$/.test(a.data.trim()))) ok = false; // "null MX": takes no email
+    else if (mx.Status === 0 && !mx.Answer?.some((a) => a.type === 15)) {
+      const a = await lookup("A");
+      ok = !(a.Status === 0 && !a.Answer?.some((r) => r.type === 1 || r.type === 5));
+    }
+  } catch {
+    ok = true;
+  }
+  mailDomains.set(domain, ok);
+  return ok;
+}
+
 /** Every test-mode email goes here. Override with the Vault secret OUTREACH_TEST_RECIPIENT. */
 const DEFAULT_TEST_RECIPIENT = "oliverburt3@gmail.com";
 

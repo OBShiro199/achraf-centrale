@@ -5,4 +5,4 @@
 export const CONTACT_EMAIL = "achrafandoliver@omail.sh";
 
 /** When the terms or privacy policy last changed. */
-export const LEGAL_UPDATED = "14 October 2026";
+export const LEGAL_UPDATED = "4 November 2026";

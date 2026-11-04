@@ -1,16 +1,58 @@
-// Receives OpenMail events for founder inboxes: records investor replies and
-// emails the founder a heads-up from the system inbox.
+// Receives OpenMail events for founder inboxes: records investor replies and emails the founder a heads-up
+// from the system inbox. Bounces stop that address being emailed again, out-of-office replies are ignored so
+// follow-ups still go out, and an inbox OpenMail suspends is paused here and reported to staff.
 import { admin, json, secret, serve } from "../_shared/core.ts";
 import { openmail, verifySignature } from "../_shared/openmail.ts";
 import { findInvestorByEmail, loadInvestor } from "../_shared/investor.ts";
-import { escapeHtml } from "../_shared/mail.ts";
+import { escapeHtml, suppress } from "../_shared/mail.ts";
+import { bouncedAddresses, isAutoReply, isPermanentBounce } from "../_shared/bounce.ts";
+import { emailStaff } from "../_shared/staff.ts";
 
 interface ReceivedEvent {
   event: string;
   event_id: string;
   inbox_id: string | null;
   thread_id?: string;
-  message?: { id: string; from: string; to: string; subject: string; body_text: string; received_at: string };
+  reason?: string | null;
+  message?: {
+    id: string;
+    from: string;
+    to: string;
+    subject: string;
+    body_text: string;
+    received_at: string;
+    category?: "personal" | "automated" | "marketing" | "bounce" | "spam" | "malicious";
+  };
+}
+
+type Inbox = { id: string; owner_id: string; address: string };
+
+/**
+ * A delivery report for one of our emails. A permanent failure marks the email bounced, puts the address on the
+ * do-not-email list for every founder and cancels anything still queued to it. In test mode the email went to
+ * the test inbox, not the investor, so the investor's address is left alone.
+ */
+async function handleBounce(inbox: Inbox, msg: NonNullable<ReceivedEvent["message"]>, threadId?: string) {
+  if (!isPermanentBounce(msg.subject ?? "", msg.body_text ?? "")) return "temporary";
+
+  const recent = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const outbound = () =>
+    admin.from("outreach_messages").select("id, investor_id, to_addr").eq("inbox_id", inbox.id).eq("direction", "outbound").gte("sent_at", recent)
+      .order("sent_at", { ascending: false }).limit(1);
+  const named = bouncedAddresses(msg.body_text ?? "", inbox.address);
+  let original = threadId ? (await outbound().eq("openmail_thread_id", threadId)).data?.[0] : undefined;
+  if (!original && named.length) original = (await outbound().in("to_addr", named)).data?.[0];
+  if (!original) return "unmatched";
+
+  await admin.from("outreach_messages").update({ status: "bounced" }).eq("id", original.id);
+  const investor = original.investor_id ? await loadInvestor(Number(original.investor_id)).catch(() => null) : null;
+  const to = (original.to_addr ?? "").toLowerCase();
+  if (investor?.email && investor.email.toLowerCase() === to) {
+    await suppress(to, "bounce", { investor_id: investor.id, outreach_message_id: original.id });
+    await admin.from("scheduled_emails").update({ status: "cancelled", last_error: "Address bounced" })
+      .eq("owner_id", inbox.owner_id).eq("investor_id", investor.id).eq("status", "queued");
+  }
+  return "bounced";
 }
 
 const bareAddress = (s: string) => (s.match(/<([^>]+)>/)?.[1] ?? s).trim().toLowerCase();
@@ -36,7 +78,16 @@ serve(async (req) => {
   if (event.event === "inbox.suspended" || event.event === "inbox.reactivated") {
     // An inbox retired by a domain switch stays retired.
     if (inbox.status === "retired") return json({ ok: true, ignored: "retired inbox" });
-    await admin.from("inboxes").update({ status: event.event === "inbox.suspended" ? "suspended" : "active" }).eq("id", inbox.id);
+    const suspended = event.event === "inbox.suspended";
+    await admin.from("inboxes").update({ status: suspended ? "suspended" : "active" }).eq("id", inbox.id);
+    if (suspended) {
+      await emailStaff(
+        `Centrale: OpenMail suspended ${inbox.address}`,
+        "OpenMail stopped this inbox sending. Its queued emails wait until it is reactivated.",
+        [`Inbox: ${inbox.address}`, `Reason: ${event.reason ?? "not given"}`, "Reactivation is done by OpenMail support; check the founder's bounces and drafts first."],
+        `suspended-${event.event_id}`,
+      ).catch((err) => console.error("staff alert failed", err));
+    }
     return json({ ok: true });
   }
   if (event.event !== "message.received" || !event.message) return json({ ok: true, ignored: event.event });
@@ -44,6 +95,11 @@ serve(async (req) => {
   const msg = event.message;
   const from = bareAddress(msg.from);
   if (from === inbox.address.toLowerCase()) return json({ ok: true, ignored: "self" });
+
+  // Not replies: bounces are handled, junk is left in the OpenMail thread only.
+  if (msg.category === "bounce") return json({ ok: true, bounce: await handleBounce(inbox, msg, event.thread_id) });
+  if (msg.category === "spam" || msg.category === "malicious" || msg.category === "marketing") return json({ ok: true, ignored: msg.category });
+  if (msg.category === "automated" && isAutoReply(msg.subject ?? "")) return json({ ok: true, ignored: "auto-reply" });
 
   // Attribute the reply: same thread as an email we sent, else the sender's address.
   let investorId: number | null = null;

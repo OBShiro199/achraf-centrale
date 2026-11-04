@@ -127,7 +127,7 @@ export default function HomePage() {
     {
       done: Boolean(inbox),
       label: "Inbox ready",
-      note: inbox ? (ent && !ent.can_send ? "Sending starts with your plan" : "Sending live") : "Needs setting up",
+      note: inbox ? (ent && !ent.can_send ? "Sending needs a trial or a plan" : "Sending live") : "Needs setting up",
       href: inbox ? "/dashboard/domain" : "/dashboard/settings",
     },
     { done: matched > 0, label: "Investors matched", note: matched ? "At your round, best fit first" : "From your round and sectors", href: "/dashboard/investors?picks=1" },

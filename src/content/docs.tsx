@@ -81,20 +81,19 @@ export const DOCS: DocSection[] = [
             </>,
             "Up to 500 investor rows, which is about 10 pages.",
             "Your first 10 investors, matched at your round during onboarding.",
-            "Claude drafts of first emails, and 10 emails sent from your inbox (follow-ups count towards the 10).",
+            "Sending from your inbox and automatic follow-ups, with the same daily limits as the plan.",
           ]}
         />
         <H3>What starts when your plan starts</H3>
         <Bullets
           items={[
-            "Sending with no trial cap, up to the daily limits.",
             "Revealing full contact details, 2,500 a month.",
             "Exports, 2,500 export credits a month.",
             "The full investor database with no row limit.",
           ]}
         />
         <P>
-          Once your 10 trial emails have gone, anything else you queue waits in the Outbox and sends once your plan starts. See <A href="/dashboard/docs#plans-and-limits">Plans and
+          See <A href="/dashboard/docs#plans-and-limits">Plans and
           limits</A> for every number side by side.
         </P>
       </>
@@ -340,7 +339,7 @@ export const DOCS: DocSection[] = [
       <>
         <P>
           Each founder gets one sending inbox, provided by OpenMail and created during onboarding. Investors see its address and your name on every email.
-          The trial sends 10 emails; after that, sending carries on when your plan starts.
+          Sending works from the first day of your trial.
         </P>
         <H3>How the Outbox works</H3>
         <Steps
@@ -399,9 +398,8 @@ export const DOCS: DocSection[] = [
           address, and are then hidden from search, their profile and contact details stop showing even if you saved them, and they join the
           do-not-email list.
         </P>
-        <Callout tone="warning" title="Test mode">
-          While Centrale is in testing, every email goes to a single test address instead of the investor. Each one carries a note at the top naming the
-          real recipient, so testing can never reach a real investor.
+        <Callout tone="warning" title="Emails go to real investors">
+          Every email you send or queue goes to the investor&apos;s real address, in your name. Read each draft before it goes.
         </Callout>
       </>
     ),
@@ -576,7 +574,7 @@ export const DOCS: DocSection[] = [
           head={["", "Trial", "Plan"]}
           rows={[
             ["Sending inbox", <>Yes, on <Code>@omail.sh</Code>; custom domain setup allowed</>, "Yes"],
-            ["Sending and follow-ups", "10 emails in total", "Yes, 20 new emails a day per inbox while it warms up"],
+            ["Sending and follow-ups", "Yes, same limits as the plan", "Yes, 20 new emails a day per inbox while it warms up"],
             ["Investor rows", "500", "Unlimited"],
             ["Rows per page", "Up to 50", "Up to 100"],
             ["Contact reveals", "0", "2,500 a month"],
@@ -658,12 +656,8 @@ export const DOCS: DocSection[] = [
             a: "On the log in page press Forgot your password?, enter your login email and open the link we send in the same browser. It works once, for an hour. Choose a new password and you are signed in.",
           },
           {
-            q: "Why do my emails go to a test address?",
-            a: "Centrale is in testing, so every email goes to one test inbox with a note naming the investor it was for. No real investor receives anything until live sending is switched on.",
-          },
-          {
-            q: "How many emails can I send during the trial?",
-            a: "10, follow-ups included, so you can see replies come in before you pay. After that, emails you queue wait in the Outbox and send when your plan starts. The composer shows how many trial emails are left.",
+            q: "Can I send during the trial?",
+            a: "Yes. Sending and follow-ups work from the first day of your trial, within the same daily limits as the plan.",
           },
           {
             q: "How long does domain verification take?",
@@ -716,7 +710,8 @@ export const DOCS: DocSection[] = [
           {
             date: "2026-11-04",
             items: [
-              "The trial now sends 10 emails, follow-ups included. The composer shows how many are left.",
+              "Live sending is on: emails now go to the investors you write to.",
+              "Sending and follow-ups work during the trial.",
               "Bounces are caught as soon as the delivery report arrives, and the address is never emailed again.",
               "Emails to firms whose email domain no longer exists are cancelled before they can bounce.",
               "Out-of-office replies no longer count as a reply, so your follow-up still goes out.",

@@ -26,7 +26,6 @@ import {
   listSavedSearches,
   loadDirectoryState,
   saveDirectoryState,
-  sendingNote,
   toggleSaved,
   useCount,
   useLeadFacets,
@@ -318,7 +317,7 @@ function Directory({ init }: { init: Init }) {
 
   function draftEmails() {
     if (sendingLocked) {
-      toast({ title: "Emailing starts with your plan", body: sendingNote(ent) ?? "Sending starts when your plan starts." });
+      toast({ title: "Emailing needs a trial or a plan", body: "Start your free trial from Billing to send from your inbox." });
       return;
     }
     if (!emailable.length) {
@@ -336,7 +335,7 @@ function Directory({ init }: { init: Init }) {
   async function emailTop(n: number) {
     setTopOpen(false);
     if (sendingLocked) {
-      toast({ title: "Emailing starts with your plan", body: sendingNote(ent) ?? "Sending starts when your plan starts." });
+      toast({ title: "Emailing needs a trial or a plan", body: "Start your free trial from Billing to send from your inbox." });
       return;
     }
     setTopBusy(n);

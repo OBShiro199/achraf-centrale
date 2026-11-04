@@ -1,25 +1,10 @@
--- Getting ready for live sending.
--- 1. The trial can send 10 emails: can_send is true on a paid plan, or in a running trial until 10 have gone out.
--- 2. sending_allowance() tells the send functions how many trial emails are left.
--- 3. The hourly health check counts bounces (the webhook now marks bounced emails) across all inboxes and per inbox.
-
-create or replace function private.trial_send_limit()
-returns integer
-language sql
-immutable
-set search_path = ''
-as $$ select 10 $$;
-
-create or replace function private.trial_sends_used(p_uid uuid)
-returns integer
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select count(*)::int from public.outreach_messages where owner_id = p_uid and direction = 'outbound';
-$$;
-revoke all on function private.trial_sends_used(uuid) from public, anon, authenticated;
+-- Live sending.
+-- 1. The trial sends like a paid plan: can_send is true on a paid plan or in a running trial, and follow-ups run
+--    in the trial too.
+-- 2. Emails sent in test mode are marked status 'test' and never get a follow-up, so going live cannot send an
+--    investor a follow-up to an email they never received. Every email sent before today was a test.
+-- 3. sending_allowance() tells the send functions whether a founder can send.
+-- 4. The hourly health check counts bounces (the webhook now marks bounced emails) across all inboxes and per inbox.
 
 create or replace function private.entitlements(p_uid uuid)
  RETURNS TABLE(plan_id text, plan_name text, status text, active boolean, paid boolean, trial_ends_at timestamp with time zone, period_start timestamp with time zone, period_end timestamp with time zone, max_rows integer, page_size_max integer, reveals_total integer, reveals_left integer, exports_total integer, exports_left integer, daily_row_views integer, rows_viewed_today integer, searches_per_minute integer, can_send boolean, manage_url text)
@@ -67,27 +52,12 @@ AS $function$
     case when e.paid or e.in_trial then p.daily_row_views else 300 end,
     coalesce((select u.rows_viewed from private.search_usage u where u.owner_id = p_uid and u.day = current_date), 0),
     p.searches_per_minute,
-    e.paid or (e.in_trial and private.trial_sends_used(p_uid) < private.trial_send_limit()),
+    e.paid or e.in_trial,
     e.manage_url
   from e
   join public.plans p on p.id = e.limits_plan;
 $function$;
 revoke all on function private.entitlements(uuid) from public, anon, authenticated;
-
--- What the app reads: the entitlements, plus how many trial emails are left (null on a paid plan).
-create or replace function public.my_entitlements()
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select to_jsonb(e) || jsonb_build_object(
-    'trial_sends_left', case when e.paid then null else greatest(0, private.trial_send_limit() - private.trial_sends_used(auth.uid())) end,
-    'trial_sends_total', private.trial_send_limit()
-  )
-  from private.entitlements(auth.uid()) e;
-$$;
 
 create or replace function public.sending_allowance(p_uid uuid)
 returns jsonb
@@ -96,15 +66,43 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object(
-    'can_send', e.can_send,
-    'paid', e.paid,
-    'trial_left', case when e.paid then null else greatest(0, private.trial_send_limit() - private.trial_sends_used(p_uid)) end
-  )
-  from private.entitlements(p_uid) e;
+  select jsonb_build_object('can_send', e.can_send, 'paid', e.paid) from private.entitlements(p_uid) e;
 $$;
 revoke all on function public.sending_allowance(uuid) from public, anon, authenticated;
 grant execute on function public.sending_allowance(uuid) to service_role;
+
+update public.outreach_messages set status = 'test' where direction = 'outbound' and sent_at < '2026-11-05';
+
+create or replace function public.follow_up_candidates(p_limit integer default 20)
+returns table (message_id uuid, owner_id uuid, investor_id bigint, thread_id text, subject text, body text, sent_at timestamptz, follow_up_days integer)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select o.id, o.owner_id, o.investor_id, o.openmail_thread_id, o.subject, o.body, o.sent_at, s.follow_up_days
+  from public.outreach_messages o
+  join public.startups s on s.owner_id = o.owner_id
+  where o.direction = 'outbound'
+    and o.kind = 'first'
+    and o.status not in ('test', 'bounced')
+    and o.investor_id is not null
+    and o.openmail_thread_id is not null
+    and s.auto_follow_up
+    and exists (select 1 from private.entitlements(o.owner_id) e where e.can_send)
+    and o.sent_at <= now() - make_interval(days => s.follow_up_days) + interval '12 hours'
+    and o.sent_at >= now() - interval '21 days'
+    and not exists (
+      select 1 from public.outreach_messages r
+      where r.direction = 'inbound'
+        and (r.openmail_thread_id = o.openmail_thread_id or (r.owner_id = o.owner_id and r.investor_id = o.investor_id))
+    )
+    and not exists (select 1 from public.scheduled_emails f where f.parent_message_id = o.id)
+  order by o.sent_at
+  limit p_limit;
+$$;
+revoke all on function public.follow_up_candidates(integer) from public, anon, authenticated;
+grant execute on function public.follow_up_candidates(integer) to service_role;
 
 create or replace function public.ops_snapshot()
  RETURNS jsonb

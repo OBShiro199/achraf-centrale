@@ -5,7 +5,7 @@ import { admin, HttpError, json, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
-import { noSendingReason, sendingAllowance } from "../_shared/inbox.ts";
+import { sendingAllowance } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
 import { accountDailyCap, INBOX_DAILY_CAP, sentToday as countSentToday, startOfUtcDay } from "../_shared/limits.ts";
 
@@ -115,11 +115,11 @@ async function sendDue() {
       continue;
     }
 
-    // Trials send their first few emails; past that, and on lapsed plans, the queue waits for the plan to start.
+    // Lapsed plans keep their queue; it sends once a plan starts again.
     if (!allowances.has(e.owner_id)) allowances.set(e.owner_id, await sendingAllowance(e.owner_id));
     const allowance = allowances.get(e.owner_id)!;
     if (!allowance.can_send) {
-      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: noSendingReason(allowance) });
+      await requeue({ send_after: new Date(Date.now() + 3_600_000).toISOString(), last_error: "Sending starts when your plan starts" });
       log.push(`${e.id}: no sending allowance, retry in 1h`);
       continue;
     }
@@ -214,7 +214,7 @@ async function sendDue() {
       to_addr: to,
       subject: e.subject,
       body: e.body,
-      status: result.status,
+      status: testMode ? "test" : result.status,
     });
     if (insertError) console.error("outreach insert failed", insertError);
 
@@ -225,10 +225,6 @@ async function sendDue() {
     sentThisRun.set(inbox.id, (sentThisRun.get(inbox.id) ?? 0) + 1);
     sentToday.set(inbox.id, (sentToday.get(inbox.id) ?? 0) + 1);
     accountSent = (accountSent ?? 0) + 1;
-    if (allowance.trial_left !== null) {
-      allowance.trial_left -= 1;
-      allowance.can_send = allowance.trial_left > 0;
-    }
     log.push(`${e.id}: sent ${e.kind}`);
   }
   return log;

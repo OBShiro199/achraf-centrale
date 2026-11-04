@@ -150,24 +150,11 @@ export async function moveInboxToDomain(ownerId: string, domain: string, mailbox
   return row;
 }
 
-/** Emails a founder may send during the 7-day trial. Mirrors private.trial_send_limit() in the database. */
-export const TRIAL_SENDS = 10;
-
-/**
- * Whether this founder can send now: a paid plan sends freely, a running trial sends up to TRIAL_SENDS emails.
- * `trial_left` is null on a paid plan.
- */
+/** Whether this founder can send now: on a paid plan or in a running trial. */
 export async function sendingAllowance(ownerId: string) {
   const { data, error } = await admin.rpc("sending_allowance", { p_uid: ownerId });
   if (error) throw error;
-  return data as { can_send: boolean; paid: boolean; trial_left: number | null };
-}
-
-/** Why a founder without a sending allowance cannot send. */
-export function noSendingReason(a: { paid: boolean; trial_left: number | null }) {
-  return a.trial_left === 0
-    ? `You have sent the ${TRIAL_SENDS} emails that come with the trial. The rest send when your plan starts.`
-    : "Sending starts when your plan starts.";
+  return data as { can_send: boolean; paid: boolean };
 }
 
 /** Reveals and exports come with a paid plan, not the trial. */

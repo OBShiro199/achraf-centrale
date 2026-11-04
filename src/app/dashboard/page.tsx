@@ -12,7 +12,7 @@ import { RoughStrokes, type Stroke } from "@/components/sketch/rough";
 import { BrandMark } from "@/components/landing/logo";
 import { callFunction } from "@/lib/supabase/client";
 import { useStats, useTopMatches } from "@/lib/data";
-import { reasonLabel, sendingNote, type DirectoryRow } from "@/lib/directory";
+import { reasonLabel, type DirectoryRow } from "@/lib/directory";
 import { label, STAGES } from "@/lib/taxonomy";
 import type { ThreadSummary } from "@/lib/types";
 import { cn, timeAgo } from "@/lib/utils";
@@ -127,7 +127,7 @@ export default function HomePage() {
     {
       done: Boolean(inbox),
       label: "Inbox ready",
-      note: inbox ? (ent && !ent.paid ? (sendingNote(ent) ?? "").replace(/\.$/, "") : "Sending live") : "Needs setting up",
+      note: inbox ? (ent && !ent.can_send ? "Sending needs a trial or a plan" : "Sending live") : "Needs setting up",
       href: inbox ? "/dashboard/domain" : "/dashboard/settings",
     },
     { done: matched > 0, label: "Investors matched", note: matched ? "At your round, best fit first" : "From your round and sectors", href: "/dashboard/investors?picks=1" },

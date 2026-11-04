@@ -8,7 +8,6 @@ import { Modal, brandConfetti } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { BrandMark } from "@/components/landing/logo";
 import { Hand } from "@/components/sketch/hand";
-import { sendingNote } from "@/lib/directory";
 import { callFunction } from "@/lib/supabase/client";
 import type { Investor } from "@/lib/types";
 import { useApp } from "./context";
@@ -118,13 +117,13 @@ export function ComposeModal({
                   "There is no email on file for this investor."
                 ) : locked ? (
                   <>
-                    {sendingNote(ent)}{" "}
+                    Sending needs a trial or a plan.{" "}
                     <a href="/dashboard/billing" className="text-ink underline-offset-2 hover:underline">
                       Billing
                     </a>
                   </>
                 ) : (
-                  `Drafted by Claude. Read before sending.${ent && !ent.paid ? ` ${sendingNote(ent)}` : ""}`
+                  "Drafted by Claude. Read before sending."
                 )}
               </span>
               <Button variant="primary" onClick={() => void send()} disabled={locked || noEmail || drafting || sending || !subject.trim() || !body.trim() || !inbox}>

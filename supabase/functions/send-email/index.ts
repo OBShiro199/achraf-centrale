@@ -2,7 +2,7 @@
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
 import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
-import { noSendingReason, sendingAllowance } from "../_shared/inbox.ts";
+import { sendingAllowance } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
 import { dailyLimitReached, INBOX_DAILY_CAP } from "../_shared/limits.ts";
 
@@ -17,7 +17,7 @@ serve(async (req) => {
   if (!subject?.trim() || !body?.trim()) throw new HttpError(400, "Add a subject and a message");
   const id = investorId(investor_id);
   const allowance = await sendingAllowance(user.id);
-  if (!allowance.can_send) throw new HttpError(402, noSendingReason(allowance));
+  if (!allowance.can_send) throw new HttpError(402, "Sending needs a trial or a plan. Start one from Billing.");
 
   const [{ data: inbox }, investor, { data: startup }] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),
@@ -73,7 +73,7 @@ serve(async (req) => {
         to_addr: to,
         subject: subject.trim(),
         body: body.trim(),
-        status: result.status,
+        status: test ? "test" : result.status,
       },
       { onConflict: "openmail_message_id", ignoreDuplicates: true },
     )

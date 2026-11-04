@@ -8,7 +8,7 @@ import { Avatar, Modal, Pill, brandConfetti } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { callFunction } from "@/lib/supabase/client";
 import { queueEmails } from "@/lib/outbox";
-import { sendingNote, type DirectoryRow } from "@/lib/directory";
+import type { DirectoryRow } from "@/lib/directory";
 import { cn } from "@/lib/utils";
 import { useApp } from "./context";
 
@@ -212,10 +212,8 @@ export function BatchComposer({ rows, open, onClose, onQueued }: { rows: Directo
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-2 px-5 py-3">
         <p className="max-w-[460px] text-[12px] text-label">
           {locked
-            ? `${sendingNote(ent)} You can read every draft now.`
-            : ent && !ent.paid && (ent.trial_sends_left ?? 0) < ready.length
-              ? `${sendingNote(ent)} The first ${ent.trial_sends_left} send now; the rest wait in the Outbox until your plan starts.`
-              : inbox
+            ? "Sending needs a trial or a plan. You can read every draft now."
+            : inbox
               ? "Queued emails send from your inbox, up to 20 new emails a day. Anything over rolls to the next morning."
               : "Your inbox is not set up yet. Emails will wait in the Outbox until it is."}
           {noEmail > 0 && ` ${noEmail} without an email on file ${noEmail === 1 ? "is" : "are"} skipped.`}

@@ -8,7 +8,7 @@ Last updated: 2026-11-04
 ## Live on www.centralegtm.com
 
 - Signup, onboarding (website scrape, profile, brand, inbox, Claude picks), pitch deck, investor directory (133,773 investors, all with an email; 31 filters, AI search, saved searches), drafts, Outbox, follow-ups, inbox and replies, custom domains.
-- Test mode: every outreach email goes to oliverburt3@gmail.com (`OUTREACH_LIVE` off).
+- Live sending since 4 November (`OUTREACH_LIVE` = true in Vault). Set it to anything else to send every email to `OUTREACH_TEST_RECIPIENT` again; test-mode emails are stored with status `test` and never get a follow-up.
 - Email the top 10, 25 or 50 of a search.
 - CI on every push: types, lint and build for the app; type check and tests for edge functions.
 
@@ -30,7 +30,7 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 - OpenMail suspending an inbox pauses it here (as before) and now emails staff with the reason.
 - Hourly health check alerts above 3% bounces over 7 days (at 50+ sends), and on any inbox above 5% (at 20+ sends).
 - Before every send, a free DNS check (Cloudflare DNS over HTTPS) cancels emails to domains that no longer exist or take no email, and suppresses the address.
-- Trial sends 10 emails, follow-ups included (`private.trial_send_limit()` and `TRIAL_SENDS` in `_shared/inbox.ts`). Terms, docs and composer copy updated.
+- The trial sends and follows up like the paid plan (decided 4 Nov). Every email sent before 5 November is marked `test` so it never gets a follow-up. Terms, docs and composer copy updated.
 - Migration `20261104100000_email_sending_readiness` and the functions openmail-webhook, ops-alerts, send-email and process-outbox need deploying (see How to ship).
 
 ## Partly done
@@ -55,7 +55,7 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 - [ ] Upgrade Supabase to Pro plus Small compute (about $40 a month). Database is over the free limit and has gone read-only once.
 - [ ] Confirm the $149 price, set it in Whop and the `plans` table. Annual plan or not. (4 Nov: parked for now.)
 - [ ] Confirm the rights to use and resell each investor data source; name who answers removal requests.
-- [ ] (4 Nov: parked for now.) Legal review of live cold sending (UK PECR, GDPR, CAN-SPAM), then pick the date to turn on `OUTREACH_LIVE`.
+- [ ] (4 Nov: parked; live sending was turned on 4 Nov without it.) Legal review of live cold sending (UK PECR, GDPR, CAN-SPAM).
 - [ ] Lawyer review of the drafted /terms and /privacy pages (live, marked as awaiting legal review), plus a data processing agreement for founders. No cookie banner is needed while the site only uses sign-in cookies.
 - [ ] Who handles support and where founders reach us (then Claude builds the help form to that address).
 - [ ] OpenMail capacity: decided 4 Nov to stay on Pro with one inbox per account (already how provisioning works). At 150 a day across the account (500 after 30 days), Centrale serves about 7 founders sending 20 a day; Pro includes 10 inboxes, then about €1 each.

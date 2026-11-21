@@ -48,3 +48,18 @@ export function faviconFor(domain: string | null | undefined) {
 
 export const DECK_EXTENSIONS = [".pdf", ".pptx", ".ppt", ".key", ".docx"];
 export const DECK_MAX_BYTES = 50 * 1024 * 1024;
+
+/** +14155550123 as +1 (415) 555-0123; other countries keep the plain E.164 form with spaces. */
+export function formatPhone(e164: string | null | undefined) {
+  if (!e164) return "";
+  const d = e164.replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (d.startsWith("44") && d.length === 12) return `+44 ${d.slice(2, 6)} ${d.slice(6)}`;
+  return `+${d}`;
+}
+
+/** Seconds as 4:05. */
+export function duration(seconds: number | null | undefined) {
+  const s = Math.max(0, Math.round(seconds ?? 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

@@ -5,6 +5,8 @@
 import { admin, json, secret, serve } from "../_shared/core.ts";
 import { verifyWhopSignature, whop, type WhopMembership } from "../_shared/whop.ts";
 import { hasPaidPlan, provisionInbox } from "../_shared/inbox.ts";
+import { releaseNumber } from "../_shared/phone.ts";
+import { unipile } from "../_shared/unipile.ts";
 
 interface WhopEvent {
   id: string;
@@ -83,6 +85,16 @@ async function sync(m: WhopMembership) {
     } catch (err) {
       // The founder can retry from Settings; the subscription is already saved.
       console.error("inbox provisioning after payment failed", err);
+    }
+  }
+  // A plan that ended stops costing money: give back the US number and unlink LinkedIn and WhatsApp (Unipile bills per
+  // linked account). The founder reconnects in a minute if they come back.
+  if (status === "canceled") {
+    await releaseNumber(owner).catch((err) => console.error("number release failed", err));
+    const { data: accounts } = await admin.from("channel_accounts").select("id, unipile_account_id").eq("owner_id", owner).neq("status", "disconnected");
+    for (const a of accounts ?? []) {
+      if (a.unipile_account_id) await unipile(`/api/v1/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.error("unipile unlink failed", err));
+      await admin.from("channel_accounts").update({ status: "disconnected" }).eq("id", a.id);
     }
   }
   return `synced ${status}`;

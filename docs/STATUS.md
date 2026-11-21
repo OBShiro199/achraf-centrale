@@ -3,7 +3,7 @@
 What is live, what is built but not shipped, what is waiting on someone, and what was left out on purpose.
 Keep this in step with the PRD (claude.ai/code/artifact/aca85a1b-767a-48ff-a275-aaa8ac14f6cc) and update it with every PR.
 
-Last updated: 2026-11-04
+Last updated: 2026-11-21
 
 ## Live on www.centralegtm.com
 
@@ -22,6 +22,27 @@ All 12 migrations (20261014100000 to 20261017120000) applied to `tldvqiqucfmlnkg
 - Investor import command; end-to-end tests; edge function and webhook failure alerts.
 
 How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the account that owns Centrale. Apply migrations with `supabase db query --linked --project-ref tldvqiqucfmlnkgxaufy -f <file>` (wrapped in a transaction, plus a row in `supabase_migrations.schema_migrations`) and deploy with `supabase functions deploy <name> --project-ref tldvqiqucfmlnkgxaufy`, adding `--no-verify-jwt` for track-open, signup, openmail-webhook, generate-deck, process-outbox, stripe-webhook, whop-webhook, unsubscribe, investor-removal, meeting-link and ops-alerts. Merge stacked PRs one at a time without deleting a base branch that another PR still points at.
+
+## Built 2026-11-21 (phase 2: every channel), not yet switched on
+
+Code is on branch `feat/phase-2`. Switching it on is in `docs/HANDOVER.md` section 6.
+
+- **Pricing:** two plans, $129 a month or $249 every 3 months; no yearly plan. The trial gets everything the plan has (`paid` is true during a running trial). Plan picker on /start, Billing and the landing page.
+- **LinkedIn and WhatsApp (Unipile):**
+  - founders connect their own accounts (`channels` function, Settings > Channels, end of onboarding);
+  - Claude drafts a short note, which goes as a LinkedIn message or invite, or a WhatsApp message;
+  - replies come in through `unipile-webhook`;
+  - daily limits are 20 invites, 50 LinkedIn messages, 15 new WhatsApp chats and 60 WhatsApp messages.
+- **Calls (Telnyx):**
+  - each founder gets a US number during onboarding (`phone` function);
+  - calling runs in the browser through a floating dialer; the server connects the investor from the founder's number;
+  - the investor hears a recording notice; recording, transcript (Deepgram via Telnyx), summary and outcome tag follow;
+  - limit of 60 calls a day.
+- **Unibox:** Inbox lists every channel from the new `conversations` table, with live updates. Email history is backfilled. Claude tags each reply or call, positive tags move the pipeline, and founders can override any tag.
+- **Sending domain:** at the end of onboarding Centrale suggests names (.com, .co, .io or .org only, under $13) and buys one through Porkbun. It then publishes the OpenMail records and moves the inbox onto the domain once it verifies.
+- **Landing page:** copy rewritten, and stale claims removed ($49 price, "send from your own Gmail", "already warm domains").
+- **Unchanged:** email stays on OpenMail. AgentMail's terms forbid cold outreach.
+- **Also updated:** the cancel and delete-account flows release the number and unlink accounts; terms, privacy and docs are updated; `docs/HANDOVER.md` and `scripts/setup-integrations.mjs` are new.
 
 ## Built 2026-11-04 (email sending readiness)
 
@@ -51,6 +72,11 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 - **Daily send cap.** Defaults to 150 (OpenMail Pro, first 30 days). Raise `OPENMAIL_ACCOUNT_DAILY_CAP` in Vault to 500 once the account is past 30 days.
 
 ## Needs Achraf
+- [ ] Create the Unipile account (about €49 a month for the first 10 connected accounts), and the Porkbun account with credit.
+- [ ] Telnyx: Level 2 verification, so the account can buy US numbers.
+- [ ] Whop: create the $129 monthly and $249 quarterly plans, each with a 7-day trial.
+- [ ] Domain cap: $5 only buys TLDs on spam watch lists (.xyz, .online, .site), so the code caps at $13 for .com. Confirm the $13 cap.
+- [ ] OpenMail terms (s.11) allow cold email only with a postal address, an opt-out, at most 2 follow-ups and no purchased lists. Revisit the decision not to add an address.
 
 - [ ] Upgrade Supabase to Pro plus Small compute (about $40 a month). Database is over the free limit and has gone read-only once.
 - [ ] Confirm the $149 price, set it in Whop and the `plans` table. Annual plan or not. (4 Nov: parked for now.)

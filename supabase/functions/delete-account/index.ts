@@ -2,6 +2,8 @@
 // Refuses while a paid plan is still set to renew, so nobody is charged for an account that no longer exists.
 // Order: OpenMail inboxes and domains, then stored files, then rows without a foreign key, then the auth
 // user (which cascades to every founder table).
+import { releaseNumber } from "../_shared/phone.ts";
+import { unipile } from "../_shared/unipile.ts";
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError } from "../_shared/openmail.ts";
 
@@ -49,8 +51,16 @@ serve(async (req) => {
   for (const i of inboxes ?? []) await openmailDelete(`/v1/inboxes/${i.openmail_inbox_id}`);
   for (const d of domains ?? []) if (d.openmail_domain_id) await openmailDelete(`/v1/domains/${d.openmail_domain_id}`);
 
+  // Paid resources first: the US number, and LinkedIn and WhatsApp at Unipile (billed per linked account).
+  await releaseNumber(user.id).catch((err) => console.warn("number release failed", err));
+  const { data: accounts } = await admin.from("channel_accounts").select("unipile_account_id").eq("owner_id", user.id).neq("status", "disconnected");
+  for (const a of accounts ?? []) {
+    if (a.unipile_account_id) await unipile(`/api/v1/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.warn("unipile unlink failed", err));
+  }
+
   await removeFolder("decks", user.id);
   await removeFolder("brand", user.id);
+  await removeFolder("call-recordings", user.id);
 
   const { error: forgetError } = await admin.rpc("forget_owner", { p_uid: user.id });
   if (forgetError) throw forgetError;

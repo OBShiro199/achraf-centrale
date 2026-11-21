@@ -1,10 +1,11 @@
 // Receives OpenMail events for founder inboxes: records investor replies and emails the founder a heads-up
 // from the system inbox. Bounces stop that address being emailed again, out-of-office replies are ignored so
 // follow-ups still go out, and an inbox OpenMail suspends is paused here and reported to staff.
-import { admin, json, secret, serve } from "../_shared/core.ts";
-import { openmail, verifySignature } from "../_shared/openmail.ts";
+import { admin, json, serve } from "../_shared/core.ts";
+import { verifySignature } from "../_shared/openmail.ts";
 import { findInvestorByEmail, loadInvestor } from "../_shared/investor.ts";
-import { escapeHtml, suppress } from "../_shared/mail.ts";
+import { suppress } from "../_shared/mail.ts";
+import { notifyFounder, tagOutcome, touchConversation } from "../_shared/unibox.ts";
 import { bouncedAddresses, isAutoReply, isPermanentBounce } from "../_shared/bounce.ts";
 import { emailStaff } from "../_shared/staff.ts";
 
@@ -144,38 +145,29 @@ serve(async (req) => {
       .eq("status", "queued");
   }
 
-  // Heads-up email to the founder, only for investor replies.
-  if (investorId) {
-    try {
-      const [investor, { data: profile }] = await Promise.all([
-        loadInvestor(investorId).catch(() => null),
-        admin.from("profiles").select("email,first_name").eq("id", inbox.owner_id).single(),
+  // Into the Unibox, then tag the outcome and tell the founder (investor replies only).
+  if (event.thread_id) {
+    const convo = await touchConversation({
+      owner_id: inbox.owner_id,
+      channel: "email",
+      external_id: event.thread_id,
+      investor_id: investorId,
+      title: msg.subject,
+      contact_name: msg.from.replace(/<[^>]+>/, "").trim() || from,
+      contact_handle: from,
+      preview: msg.body_text,
+      direction: "inbound",
+      at: msg.received_at,
+    });
+    if (investorId) {
+      const investor = await loadInvestor(investorId).catch(() => null);
+      const results = await Promise.allSettled([
+        tagOutcome({ owner_id: inbox.owner_id, conversation_id: convo, investor_id: investorId, channel: "email", text: msg.body_text }),
+        investor
+          ? notifyFounder({ owner_id: inbox.owner_id, investor, channel: "email", preview: msg.body_text, conversation_id: convo, idempotencyKey: `notify-${event.event_id}` })
+          : Promise.resolve(),
       ]);
-      const appUrl = await secret("APP_URL").catch(() => "http://localhost:3000");
-      if (investor && profile?.email) {
-        const preview = escapeHtml(msg.body_text.split(/\n\s*\n/)[0].slice(0, 280));
-        await openmail(`/v1/inboxes/${await secret("OPENMAIL_SYSTEM_INBOX_ID")}/send`, {
-          idempotencyKey: `notify-${event.event_id}`,
-          body: {
-            to: profile.email,
-            subject: `${investor.full_name} replied`,
-            body: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#391c25;max-width:520px;background:#f6f1e8;padding:28px;border-radius:10px">
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr>
-<td style="padding:0 3px 0 0"><div style="width:10px;height:10px;background:#d94a38;border-radius:3px"></div></td>
-<td style="padding:0 3px"><div style="width:10px;height:10px;background:#391c25;border-radius:3px"></div></td>
-<td style="padding:0 3px"><div style="width:10px;height:10px;background:#d94a38;border-radius:3px"></div></td>
-<td style="padding:0 3px"><div style="width:10px;height:10px;background:#e8a193;border-radius:3px"></div></td>
-<td style="padding:0 0 0 10px;font-weight:600;font-size:15px;color:#391c25">centrale</td></tr></table>
-<p style="font-size:22px;line-height:1.25;font-weight:600;margin:0 0 12px">${escapeHtml(investor.full_name)} from ${escapeHtml(investor.firm)} replied.</p>
-<p style="margin:0 0 20px;color:#6f5f62;border-left:3px solid #d94a38;padding-left:12px">${preview}</p>
-<p style="margin:0"><a href="${appUrl}/dashboard/inbox?thread=${event.thread_id ?? ""}" style="display:inline-block;background:#391c25;color:#f6f1e8;text-decoration:none;padding:10px 16px;border-radius:6px">Open the thread</a></p>
-<p style="margin:22px 0 0;font-size:12px;color:#9a8d88">Your next round starts here.</p>
-</div>`,
-          },
-        });
-      }
-    } catch (err) {
-      console.error("founder notification failed", err);
+      for (const r of results) if (r.status === "rejected") console.error("reply follow-on failed", r.reason);
     }
   }
 

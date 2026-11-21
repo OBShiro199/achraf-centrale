@@ -1,6 +1,8 @@
 # Centrale
 
-Bulk VC applications, one platform. A founder signs up, enters their domain, answers five questions, and gets a startup profile written by Claude, a scored list of investors and a sending inbox, so the first investor email can go out within fifteen minutes of signup.
+Find the right investors. Get the meeting. A founder signs up, starts a 7-day trial with everything included, and gets a startup profile written by Claude, 10 investors matched at their round, an inbox on their own domain, a US phone number, and LinkedIn and WhatsApp from their own accounts. Every reply and call lands in one inbox, tagged by Claude.
+
+New here? Start with `docs/HANDOVER.md` (accounts, secrets, local setup, shipping, runbook), then `CLAUDE.md` (house rules) and `docs/STATUS.md` (what is live and what is waiting).
 
 ## Stack
 
@@ -10,7 +12,11 @@ Bulk VC applications, one platform. A founder signs up, enters their domain, ans
 | Data | Supabase Postgres with RLS, Storage (`decks` bucket), Realtime (reply notifications) |
 | Server | Supabase Edge Functions (Deno) in `supabase/functions` |
 | Email | OpenMail: one pod and one inbox per founder, webhooks for inbound mail |
-| AI | Claude (`claude-opus-5`) with structured outputs for profiles and email drafts |
+| LinkedIn and WhatsApp | Unipile: founders connect their own accounts; webhooks bring replies back |
+| Calls | Telnyx: a US number per founder, browser calling (`@telnyx/webrtc`), recording and transcription |
+| Domains | Porkbun: buys a sending domain per founder |
+| Billing | Whop: $129 a month or $249 a quarter, 7-day trial |
+| AI | Claude (`claude-opus-5-5`) with structured outputs for profiles, drafts, decks and outcome tags |
 | Scraping | Firecrawl v2 single-page scrape |
 
 Supabase project: `tldvqiqucfmlnkgxaufy` (Achraf SaaS, eu-central-1).

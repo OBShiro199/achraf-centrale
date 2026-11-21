@@ -7,6 +7,8 @@ import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.
 import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { sendingAllowance } from "../_shared/inbox.ts";
 import { loadInvestor } from "../_shared/investor.ts";
+import { touchConversation } from "../_shared/unibox.ts";
+import { finishBoughtDomains } from "../_shared/bought-domains.ts";
 import { accountDailyCap, INBOX_DAILY_CAP, sentToday as countSentToday, startOfUtcDay } from "../_shared/limits.ts";
 
 const PER_RUN_PER_INBOX = 8;
@@ -217,6 +219,10 @@ async function sendDue() {
       status: testMode ? "test" : result.status,
     });
     if (insertError) console.error("outreach insert failed", insertError);
+    await touchConversation({
+      owner_id: e.owner_id, channel: "email", external_id: result.threadId, investor_id: e.investor_id, title: e.subject,
+      contact_name: investor.full_name, contact_handle: investor.email, preview: e.body, direction: "outbound",
+    }).catch((err) => console.error("unibox mirror failed", err));
 
     await admin.from("scheduled_emails").update({ status: "sent", outreach_message_id: insertError ? null : outreachId, last_error: null }).eq("id", e.id);
     if (e.kind === "first") {
@@ -237,5 +243,6 @@ serve(async (req) => {
 
   const planned = await planFollowUps(Boolean(dry_run));
   const sent = dry_run ? [] : await sendDue();
-  return json({ ok: true, planned, sent });
+  const domains = dry_run ? [] : await finishBoughtDomains().catch((err) => [`domains: ${err instanceof Error ? err.message : err}`]);
+  return json({ ok: true, planned, sent, domains });
 });

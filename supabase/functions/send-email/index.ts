@@ -4,6 +4,7 @@ import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.
 import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
 import { sendingAllowance } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
+import { touchConversation } from "../_shared/unibox.ts";
 import { dailyLimitReached, INBOX_DAILY_CAP } from "../_shared/limits.ts";
 
 serve(async (req) => {
@@ -80,6 +81,11 @@ serve(async (req) => {
     .select()
     .maybeSingle();
   if (error) throw error;
+
+  await touchConversation({
+    owner_id: user.id, channel: "email", external_id: result.threadId, investor_id: investor.id, title: subject.trim(),
+    contact_name: investor.full_name, contact_handle: investor.email, preview: body, direction: "outbound",
+  });
 
   // Sending counts as saving: contacted investors stay on the founder's list.
   await admin.from("saved_investors").upsert({ owner_id: user.id, investor_id: investor.id }, { ignoreDuplicates: true });

@@ -9,13 +9,16 @@ import { Card, CardHeader, Pill, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { BrandMark } from "@/components/landing/logo";
 import { callFunction } from "@/lib/supabase/client";
-import { usePlanPrice } from "@/lib/plan";
+import { PlanPicker } from "@/components/app/plan-picker";
+import { usePlans, type PlanId } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 const n = (x: number) => x.toLocaleString("en-GB");
 
 const INCLUDED = [
   "Your own inbox on your own domain, 20 new emails a day while it warms up",
+  "LinkedIn and WhatsApp from your own accounts, plus a US number for calls",
+  "One inbox for every reply, with calls recorded and tagged",
   "Claude matching, drafting and automatic follow-ups",
   "2,500 contact reveals and 2,500 export credits a month",
   "The full investor database, no page limit",
@@ -46,7 +49,9 @@ export default function BillingPage() {
   const params = useSearchParams();
   const { ent, reloadEnt } = useApp();
   const [busy, setBusy] = useState<"checkout" | "manage" | null>(null);
-  const price = usePlanPrice();
+  const plans = usePlans();
+  const [plan, setPlan] = useState<PlanId>("quarterly");
+  const current = plans?.find((p) => p.id === ent?.plan_id) ?? null;
 
   const checkout = params.get("checkout");
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function BillingPage() {
   async function go(action: "checkout" | "manage") {
     setBusy(action);
     try {
-      const { url } = await callFunction<{ url: string }>("whop", { action });
+      const { url } = await callFunction<{ url: string }>("whop", { action, plan });
       window.location.href = url;
     } catch (err) {
       toast({ title: "Could not open billing", body: err instanceof Error ? err.message : undefined, tone: "error" });
@@ -73,7 +78,7 @@ export default function BillingPage() {
     : ent.status === "trialing"
       ? `Free trial, ${ent.trial_days_left ?? 0} day${ent.trial_days_left === 1 ? "" : "s"} left. Your plan starts on ${fmtDate(ent.trial_ends_at) ?? "the day it ends"}.`
       : ent.status === "active"
-        ? `Centrale plan, renews ${fmtDate(ent.period_end) ?? "monthly"}.`
+        ? `${current?.name ?? "Centrale"} plan, renews ${fmtDate(ent.period_end) ?? "at the end of the period"}.`
         : ent.status === "past_due"
           ? "Your last payment did not go through. Update your card to keep sending."
           : ent.status === "pending"
@@ -104,10 +109,14 @@ export default function BillingPage() {
                 <BrandMark className="h-3.5 w-3.5" color="var(--color-vermilion)" />
                 Centrale
               </p>
-              <p className="mt-3 flex items-baseline gap-1">
-                <span className="display tabular text-[42px] leading-none tracking-[-0.05em] text-display">{price ?? "\u00a0"}</span>
-                <span className="text-[13px] text-muted">a month, after a 7-day free trial</span>
-              </p>
+              {hasMembership && current ? (
+                <p className="mt-3 flex items-baseline gap-1">
+                  <span className="display tabular text-[42px] leading-none tracking-[-0.05em] text-display">{current.price}</span>
+                  <span className="text-[13px] text-muted">{current.months === 1 ? "a month" : `every ${current.months} months`}</span>
+                </p>
+              ) : (
+                <p className="mt-2 text-[13px] text-muted">7-day free trial with everything included, then pick how you pay.</p>
+              )}
             </div>
             {ent?.status === "active" ? (
               <Pill tone="green">Active</Pill>
@@ -126,14 +135,18 @@ export default function BillingPage() {
             ))}
           </ul>
           {ent && !hasMembership && (
+            <div className="mt-5 max-w-[420px]">
+              <PlanPicker value={plan} onChange={setPlan} />
+            </div>
+          )}
+          {ent && !hasMembership && (
             <Button variant="primary" className="mt-6" onClick={() => void go("checkout")} disabled={busy != null}>
               {busy === "checkout" ? "Opening checkout" : ent.status === "pending" ? "Start free trial" : "Start your plan"}
             </Button>
           )}
           {ent?.status === "trialing" && (
             <p className="mt-5 text-[12.5px] text-label">
-              During the trial you have your inbox, can connect your domain, build your profile and deck, and browse investors with contact details
-              truncated. Sending, reveals and exports start with your plan. To cancel before you are charged, use Manage subscription.
+              Everything is included during the trial. To cancel before you are charged, use Manage subscription.
             </p>
           )}
         </Card>

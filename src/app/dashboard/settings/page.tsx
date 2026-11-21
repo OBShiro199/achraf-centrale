@@ -13,6 +13,7 @@ import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Profile, Startup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SetupInboxButton } from "@/components/app/setup-inbox";
+import { ChannelsCard } from "@/components/app/channels";
 
 const FOLLOW_UP_DAYS = [2, 3, 4, 5, 7, 10, 14];
 
@@ -209,6 +210,10 @@ export default function SettingsPage() {
             </div>
           )}
         </Card>
+      </Settle>
+
+      <Settle delay={150}>
+        <ChannelsCard />
       </Settle>
 
       <Settle delay={180}>

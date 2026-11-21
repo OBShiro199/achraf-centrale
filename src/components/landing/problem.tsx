@@ -13,15 +13,15 @@ const rows = [
       <>
         The{" "}
         <Mark type="circle" color="#d94a38" padding={[2, 8]} strokeWidth={1.8} iterations={1} delay={300}>
-          fifty investors
+          investors at your round
         </Mark>{" "}
-        most likely to reply, and a first email to each of them.
+        most likely to reply, and the right words for each channel.
       </>
     ),
   },
   {
     term: "Constraint",
-    body: "The first email leaves today, not after two weeks of inbox warm-up.",
+    body: "Real conversations by the end of the first week, not the first quarter.",
   },
 ];
 
@@ -33,7 +33,7 @@ export function Problem() {
           num="1"
           label="The problem"
           title="Raising is a search problem. Most founders solve it by hand."
-          lead="Spreadsheets of funds, guessed email addresses, cold domains that land in spam. Centrale treats it like an exercise with a known method."
+          lead="Spreadsheets of funds, guessed addresses, five apps open at once. Centrale runs the whole outreach in one place, with a method you can see."
         />
         <div className="border-t border-line">
           {rows.map((r, i) => (

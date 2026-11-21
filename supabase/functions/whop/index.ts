@@ -1,5 +1,5 @@
 // Billing actions for the signed-in founder:
-//   checkout  a Whop checkout for the monthly plan, tagged with the founder's id so the membership
+//   checkout  { plan: "monthly" | "quarterly" }  a Whop checkout for that plan, tagged with the founder's id so the membership
 //             maps back to this account whatever email they pay with
 //   manage    where to change card or cancel (Whop's own membership page)
 import { admin, HttpError, json, readJson, requireUser, secret, serve } from "../_shared/core.ts";
@@ -9,7 +9,7 @@ const MANAGE_FALLBACK = "https://whop.com/@me/settings/memberships/";
 
 serve(async (req) => {
   const user = await requireUser(req);
-  const { action } = await readJson<{ action?: "checkout" | "manage" }>(req);
+  const { action, plan: planId = "quarterly" } = await readJson<{ action?: "checkout" | "manage"; plan?: string }>(req);
 
   if (action === "manage") {
     const { data } = await admin.from("subscriptions").select("manage_url").eq("owner_id", user.id).maybeSingle();
@@ -21,8 +21,9 @@ serve(async (req) => {
     if (sub?.status === "trialing" || sub?.status === "active" || sub?.status === "past_due") {
       throw new HttpError(409, "You already have a plan. Manage it from Billing.");
     }
-    const { data: plan } = await admin.from("plans").select("whop_plan_id").eq("id", "monthly").single();
-    if (!plan?.whop_plan_id) throw new HttpError(503, "The Centrale plan is not set up yet");
+    if (planId !== "monthly" && planId !== "quarterly") throw new HttpError(400, "Pick the monthly or quarterly plan");
+    const { data: plan } = await admin.from("plans").select("whop_plan_id").eq("id", planId).eq("active", true).maybeSingle();
+    if (!plan?.whop_plan_id) throw new HttpError(503, "This plan is not set up in Whop yet");
     const appUrl = await secret("APP_URL").catch(() => "http://localhost:3000");
 
     const checkout = await whop<{ id: string; purchase_url: string }>("/checkout_configurations", {

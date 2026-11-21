@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Check, Copy, Eye, Globe, Lock, Mail, MapPin, Phone, Plus, Sparkles, Star } from "lucide-react";
+import { Building2, Check, Copy, Eye, Globe, Lock, Mail, MapPin, MessageCircle, Phone, Plus, Sparkles, Star } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Avatar, Pill, Skeleton } from "@/components/ui/kit";
 import { investorDetail, isUpgradeError, reasonLabel, revealInvestor, type Contact, type DirectoryRow, type InvestorDetail } from "@/lib/directory";
@@ -9,6 +9,8 @@ import { INVESTOR_TYPES, label, ROLES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 import { LinkedInMark } from "./brand-icons";
 import { useApp } from "./context";
+import { useDialer } from "./dialer";
+import { ChannelComposer } from "./channel-composer";
 import { locationLabel, sizeLabel } from "./investor-table";
 
 function CopyButton({ text }: { text: string }) {
@@ -74,6 +76,8 @@ export function InvestorDrawerBody({
   revealsLeft: number | null;
 }) {
   const { ent } = useApp();
+  const { dial, busy } = useDialer();
+  const [composer, setComposer] = useState<"linkedin" | "whatsapp" | null>(null);
   const trial = ent != null && !ent.paid;
   const [detail, setDetail] = useState<InvestorDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -185,6 +189,16 @@ export function InvestorDrawerBody({
               <Mail className="h-3.5 w-3.5" /> Draft intro email
             </Button>
           </span>
+          {row.has_phone && (
+            <Button size="sm" onClick={() => dial(row.id)} disabled={busy}>
+              <Phone className="h-3.5 w-3.5" /> Call
+            </Button>
+          )}
+          {(row.has_linkedin || row.has_phone) && (
+            <Button size="sm" onClick={() => setComposer(row.has_linkedin ? "linkedin" : "whatsapp")}>
+              <MessageCircle className="h-3.5 w-3.5" /> Message
+            </Button>
+          )}
           <Button size="sm" onClick={onSave}>
             <Star className={cn("h-3.5 w-3.5", row.saved && "fill-vermilion text-vermilion")} /> {row.saved ? "Saved" : "Save"}
           </Button>
@@ -398,6 +412,11 @@ export function InvestorDrawerBody({
           </div>
         </section>
       </div>
+      <ChannelComposer
+        investor={composer ? { id: row.id, full_name: row.full_name, has_linkedin: row.has_linkedin, has_phone: row.has_phone } : null}
+        channel={composer ?? "linkedin"}
+        onClose={() => setComposer(null)}
+      />
     </div>
   );
 }

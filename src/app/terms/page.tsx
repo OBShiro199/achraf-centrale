@@ -14,8 +14,9 @@ export default function TermsPage() {
       <Section id="service" title="1. What Centrale is">
         <P>
           Centrale helps founders raise money. It builds a startup profile from your website, gives you an investor database to search, matches you with
-          investors at your round, drafts emails with AI for you to review, sends them from an inbox set up for you, and tracks replies and your
-          pipeline. It can also draft a pitch deck. Centrale is a tool: it does not raise money for you, give investment or legal advice, or guarantee
+          investors at your round, drafts messages with AI for you to review, sends emails from an inbox and domain set up for you, sends LinkedIn and
+          WhatsApp messages from accounts you connect, places calls from a US number we provide, and tracks replies, calls and your pipeline. It can
+          also draft a pitch deck. Centrale is a tool: it does not raise money for you, give investment or legal advice, or guarantee
           that any investor will reply or invest.
         </P>
       </Section>
@@ -35,9 +36,10 @@ export default function TermsPage() {
         <Bullets
           items={[
             "Plans start with a 7-day free trial. Payment is handled by Whop, which asks for a card at checkout. Nothing is charged during the trial.",
-            "After the trial your plan renews every month at the price shown at checkout and on the Billing page, until you cancel.",
+            "There are two plans: monthly, and quarterly (billed every three months). After the trial your plan renews at the price and interval shown at checkout and on the Billing page, until you cancel.",
             "Cancel at any time from Billing. If you cancel during the trial you are not charged. If you cancel later, your plan runs to the end of the period you have paid for and does not renew.",
-            "Sending from your inbox works during the trial. Full contact details and exports start when your paid plan starts.",
+            "Everything in the plan is available during the trial, including sending, messaging, calls, contact details and exports.",
+            "A sending domain we buy for you is registered in Centrale's name for its first year so we can manage its email records. If your plan ends we may let it lapse at renewal; ask us before then if you want it transferred to you.",
             "Plan limits (reveals, exports, deck generations, search depth) are listed in the docs and reset each billing period. Unused amounts do not roll over.",
             "We may change prices. We will tell you at least 30 days before a change affects your next renewal, and you can cancel before it does.",
           ]}
@@ -47,17 +49,19 @@ export default function TermsPage() {
         </P>
       </Section>
 
-      <Section id="sending" title="4. Sending emails through Centrale">
+      <Section id="sending" title="4. Emails, messages and calls through Centrale">
         <P>
-          You decide who to email and what to send. Every email goes out from your inbox and in your name, so you are responsible for it. When you send
-          through Centrale you agree to:
+          You decide who to contact and what to say. Every email, message and call goes out in your name, so you are responsible for it. LinkedIn and
+          WhatsApp messages go from your own accounts, under LinkedIn&apos;s and WhatsApp&apos;s own terms; those services may restrict an account they
+          think is sending too much, and that risk is yours. When you contact anyone through Centrale you agree to:
         </P>
         <Bullets
           items={[
             "write only to investors about your raise or business, in a way a professional investor would reasonably expect;",
             "tell the truth about yourself, your company and your numbers, and never pretend to be someone else;",
             "read every draft before you queue it. Drafts are written by AI and can be wrong;",
-            "follow the email and data protection laws that apply to you and to the people you write to, such as UK and EU GDPR, PECR and CAN-SPAM;",
+            "follow the email, calling and data protection laws that apply to you and to the people you contact, such as UK and EU GDPR, PECR, CAN-SPAM, the TCPA and do-not-call rules, including calling only at reasonable local hours and never calling someone who has asked you to stop;",
+            "not turn off or talk over the notice that a call may be recorded;",
             "never send spam, harassment, phishing, malware or anything illegal or deceptive.",
           ]}
         />

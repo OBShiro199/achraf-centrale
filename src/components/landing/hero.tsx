@@ -37,30 +37,30 @@ export function Hero() {
           </motion.div>
 
           <motion.h1 {...rise(0.08)} className="mt-6 text-[clamp(34px,4.3vw,54px)] leading-[1.03] tracking-[-0.045em] text-display">
-            From your domain to your first investor email in{" "}
+            Find the right investors.{" "}
             <Mark type="underline" strokeWidth={2.6} padding={2} delay={1100} duration={900}>
-              fifteen minutes.
+              Get the meeting.
             </Mark>
           </motion.h1>
 
           <motion.p {...rise(0.16)} className="mt-6 max-w-[520px] text-[17px] leading-relaxed text-muted">
-            Centrale reads your website, writes your startup profile, scores every investor against your stage and sector, and
-            sends from an inbox that is live the moment you sign up.
+            Centrale matches you with investors at your round, reaches them by email, LinkedIn, WhatsApp and phone from your own
+            accounts, and brings every reply into one inbox, tagged by where it stands.
           </motion.p>
 
           <motion.div {...rise(0.24)} className="mt-9 flex flex-wrap items-center gap-3">
             <ButtonLink href="/signup" variant="primary" size="lg" square>
-              Start your raise
+              Start your 7-day trial
             </ButtonLink>
-            <ButtonLink href="#matching" variant="secondary" size="lg" square>
-              See how matching works
+            <ButtonLink href="#how" variant="secondary" size="lg" square>
+              See how it works
             </ButtonLink>
           </motion.div>
 
           <motion.div {...rise(0.4)} className="relative mt-7 hidden items-start gap-1 pl-2 sm:flex">
             <ScribbleArrow className="h-9 w-20 -scale-y-100" delay={1.6} />
             <Hand className="mt-4 text-[22px]" tilt={-3}>
-              no inbox warm-up, no spreadsheets
+              everything included from day one
             </Hand>
           </motion.div>
         </div>

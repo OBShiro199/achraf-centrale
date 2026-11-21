@@ -3,6 +3,7 @@
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError, type OMMessage, type OMSendResult, type OMThread } from "../_shared/openmail.ts";
 import { toTrackedHtml } from "../_shared/mail.ts";
+import { touchConversation } from "../_shared/unibox.ts";
 
 interface Body {
   action?: "threads" | "thread" | "reply" | "mark_read";
@@ -148,6 +149,9 @@ serve(async (req) => {
         body: input.body.trim(),
         status: result.status,
       });
+      await touchConversation({ owner_id: user.id, channel: "email", external_id: result.threadId, investor_id: link?.investor_id ?? null, preview: input.body, direction: "outbound" })
+        .catch((err) => console.error("unibox mirror failed", err));
+      await admin.from("conversations").update({ unread: false }).eq("owner_id", user.id).eq("channel", "email").eq("external_id", result.threadId);
       return json({ ok: true });
     }
 
@@ -155,6 +159,7 @@ serve(async (req) => {
       if (!input.thread_id) throw new HttpError(400, "Missing thread");
       await loadThread(input.thread_id);
       await openmail(`/v1/threads/${encodeURIComponent(input.thread_id)}`, { method: "PATCH", body: { isRead: true } });
+      await admin.from("conversations").update({ unread: false }).eq("owner_id", user.id).eq("channel", "email").eq("external_id", input.thread_id);
       return json({ ok: true });
     }
 

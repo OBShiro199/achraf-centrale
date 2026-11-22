@@ -98,7 +98,7 @@ supabase link --project-ref tldvqiqucfmlnkgxaufy
 Built and type-checked, but not yet run against the live providers. Do these in order.
 
 1. **Apply migrations** `20261121100000_two_plans_full_trial` and `20261121110000_channels_unibox`, then deploy: `channels`, `phone`, `unipile-webhook` (no JWT), `telnyx-webhook` (no JWT), `domains`, `draft-email`, `send-email`, `process-outbox`, `openmail-webhook`, `inbox`, `whop`, `whop-webhook`, `delete-account`.
-2. **Whop:** create two plans on the Centrale product, monthly $129 and quarterly $249 (billed every 3 months), each with a 7-day free trial. Then put their ids in the database: `update public.plans set whop_plan_id = 'plan_...' where id = 'monthly';` and the same for `quarterly`. Until both are set, checkout for that plan says it is not set up.
+2. **Whop, before step 1 goes out:** create two plans on the Centrale product, monthly $129 and quarterly $249 (billed every 3 months), each with a 7-day free trial. The plans migration clears the old monthly plan id (it pointed at the $1 test plan), so straight after applying it run `update public.plans set whop_plan_id = 'plan_...' where id = 'monthly';` and the same for `quarterly`. A plan without an id is hidden from signup and Billing; with neither set, signup cannot start a trial.
 3. **Unipile:** create the account, copy the DSN and an API key, pick a random `UNIPILE_WEBHOOK_SECRET`, store all three in Vault, then run `node scripts/setup-integrations.mjs` with them in the environment to register the webhooks.
 4. **Telnyx:** complete Level 2 verification, store `TELNYX_API_KEY`, run `scripts/setup-integrations.mjs` with `TELNYX_API_KEY` set (it creates the outbound voice profile and the credential connection), then store the printed `TELNYX_CONNECTION_ID` and your account's `TELNYX_PUBLIC_KEY` in Vault.
 5. **Porkbun:** create the account, verify email and phone, add credit and auto top-up, raise the monthly API spend limit above the default $100, create an API key with purchase permission, and store `PORKBUN_API_KEY` and `PORKBUN_SECRET_KEY`.
@@ -107,7 +107,10 @@ Built and type-checked, but not yet run against the live providers. Do these in 
    - get a number and call your own mobile, checking you hear the recording notice and that the recording, transcript and tag appear in Inbox;
    - buy one domain and watch the inbox move onto it.
 
-   The call flow (`telnyx-webhook`) follows Telnyx's documented "parked call" pattern, but one detail needs a live call to confirm: which payload field carries the founder's SIP username on `call.initiated`. The code tries `sip_username`, then the `from` address. Check the function logs on the first test call.
+   The call flow (`telnyx-webhook`) follows Telnyx's documented "parked call" pattern. Three details need the first live call to confirm, in the function logs:
+   - which payload field carries the founder's SIP username on `call.initiated` (the code tries `sip_username`, then the `from` address);
+   - that `POST /v2/calls` accepts the credential connection's id (if Telnyx asks for a Call Control application id, create one with the same webhook URL and put its id in `TELNYX_CONNECTION_ID`);
+   - that the transcription model name `deepgram/nova-3` is accepted.
 
 ## 7. Runbook
 
@@ -118,6 +121,7 @@ Built and type-checked, but not yet run against the live providers. Do these in 
 | A founder's inbox is suspended | OpenMail stopped it for bounces or complaints. The admin console shows it; reactivation goes through OpenMail support |
 | LinkedIn or WhatsApp shows Reconnect | The provider signed the account out. The founder presses Reconnect in Settings > Channels |
 | Founder cancels | `whop-webhook` releases their US number and unlinks LinkedIn and WhatsApp |
+| Trial limits | The trial has everything, but contact reveals and export credits are capped at 100 (`private.trial_contact_cap()`). Calling or WhatsApp-messaging an investor uses one reveal, once per investor |
 | Founder deletes their account | `delete-account` removes their inboxes, domains, number, connected accounts, files and rows |
 | Investor asks to be removed | They use /remove, or staff add their address in the admin console |
 | Costs | Claude and Firecrawl spend is in `ai_spend` and on Settings > Running costs for staff |

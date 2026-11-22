@@ -80,9 +80,10 @@ export async function tagOutcome(opts: {
   call_id?: string;
 }) {
   const { data: convo } = await admin.from("conversations").select("outcome_source").eq("id", opts.conversation_id).maybeSingle();
-  if (convo?.outcome_source === "founder") return null;
-
+  const founderTagged = convo?.outcome_source === "founder";
   const isCall = opts.channel === "phone";
+  // A call still gets its summary when the founder already tagged the conversation; a message has nothing else to add.
+  if (founderTagged && !isCall) return null;
   const result = await structured<{ outcome: Outcome | "none"; reason: string; summary: string }>({
     system:
       `You read ${isCall ? "the transcript of a call from a startup founder to an investor" : "an investor's reply to a startup founder"} and tag where the conversation stands for the founder's pipeline.
@@ -104,13 +105,17 @@ Reason: one short sentence a founder can scan, quoting the investor where possib
     track: { owner: opts.owner_id, feature: isCall ? "call_outcome" : "reply_outcome" },
   });
 
-  if (result.outcome !== "none") {
+  if (result.outcome !== "none" && !founderTagged) {
     await admin.from("conversations").update({ outcome: result.outcome, outcome_source: "ai", outcome_reason: result.reason }).eq("id", opts.conversation_id);
     await admin.rpc("advance_pipeline", { p_owner: opts.owner_id, p_investor: opts.investor_id, p_outcome: result.outcome });
   }
   if (opts.call_id) {
-    await admin.from("calls").update({ summary: result.summary, ...(result.outcome !== "none" ? { outcome: result.outcome, outcome_source: "ai" } : {}) })
-      .eq("id", opts.call_id).is("outcome_source", null);
+    await admin.from("calls").update({ summary: result.summary }).eq("id", opts.call_id);
+    if (result.outcome !== "none") {
+      // The founder's tag, or voicemail from the machine detector, stays.
+      await admin.from("calls").update({ outcome: result.outcome, outcome_source: "ai" }).eq("id", opts.call_id)
+        .or("outcome.is.null,and(outcome_source.eq.ai,outcome.neq.voicemail)");
+    }
   }
   return result;
 }

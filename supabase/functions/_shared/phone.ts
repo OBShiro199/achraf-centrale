@@ -20,9 +20,14 @@ export async function provisionNumber(ownerId: string, areaCode?: string | null)
   const { data: current } = await admin.from("phone_numbers").select("*").eq("owner_id", ownerId).in("status", ["ordering", "active"]).maybeSingle();
   if (current?.status === "active") return current;
   if (current?.status === "ordering" && Date.now() - Date.parse(current.created_at) < 120_000) throw new HttpError(409, "Your number is being set up. Try again in a minute.");
-  if (current) await admin.from("phone_numbers").update({ status: "failed", last_error: "Abandoned order" }).eq("id", current.id);
-
   const conn = await connectionId();
+  // An order that stopped half way may still have bought the number: finish setting that one up instead of buying another.
+  if (current) {
+    const owned = await numberId(current.e164);
+    if (owned) return await finishNumber(ownerId, current.id, owned, conn);
+    await admin.from("phone_numbers").update({ status: "failed", last_error: "Abandoned order" }).eq("id", current.id);
+  }
+
   const filters = new URLSearchParams({
     "filter[country_code]": "US",
     "filter[phone_number_type]": "local",
@@ -36,26 +41,52 @@ export async function provisionNumber(ownerId: string, areaCode?: string | null)
 
   const { data: row, error } = await admin.from("phone_numbers").insert({ owner_id: ownerId, e164: available[0].phone_number, status: "ordering" }).select().single();
   if (error) throw error;
+  let ordered = false;
   try {
-    const order = await telnyx<{ data: { id: string; phone_numbers: { id?: string; phone_number: string }[] } }>("/number_orders", {
+    const order = await telnyx<{ data: { id: string } }>("/number_orders", {
       body: { phone_numbers: [{ phone_number: available[0].phone_number }], connection_id: conn, customer_reference: `founder_${ownerId}` },
     });
-    const cred = await telnyx<{ data: { id: string; sip_username: string } }>("/telephony_credentials", {
-      body: { connection_id: conn, name: `founder-${ownerId}`, tag: ownerId },
-    });
-    const { data: done } = await admin.from("phone_numbers").update({
-      status: "active",
-      telnyx_order_id: order.data.id,
-      telnyx_number_id: order.data.phone_numbers?.[0]?.id ?? null,
-      telnyx_credential_id: cred.data.id,
-      sip_username: cred.data.sip_username,
-    }).eq("id", row.id).select().single();
+    ordered = true;
+    await admin.from("phone_numbers").update({ telnyx_order_id: order.data.id }).eq("id", row.id);
     await recordSpend({ owner: ownerId, feature: "phone_number", ref: row.id }, { usd: CHANNEL_COSTS.phone_number_setup_usd });
-    return done;
+    // The order's line items have their own ids; the number's id (for release) comes from /phone_numbers.
+    let id: string | null = null;
+    for (let i = 0; i < 5 && !id; i++) {
+      id = await numberId(available[0].phone_number);
+      if (!id) await new Promise((r) => setTimeout(r, 1500));
+    }
+    return await finishNumber(ownerId, row.id, id, conn);
   } catch (err) {
     await admin.from("phone_numbers").update({ status: "failed", last_error: err instanceof Error ? err.message : String(err) }).eq("id", row.id);
+    // Never keep paying for a number nobody can use.
+    if (ordered) {
+      const id = await numberId(available[0].phone_number);
+      if (id) await telnyx(`/phone_numbers/${id}`, { method: "DELETE" }).catch((e) => console.error("could not release number after failed setup", e));
+    }
     throw err instanceof TelnyxError ? new HttpError(502, `Could not set up your number: ${err.message}`) : err;
   }
+}
+
+/** The Telnyx id of a number on our account, or null. */
+async function numberId(e164: string) {
+  const found = await telnyx<{ data: { id: string }[] }>(`/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`).catch(() => ({ data: [] }));
+  return found.data[0]?.id ?? null;
+}
+
+/** Gives the founder a SIP credential for the number and marks it active. */
+async function finishNumber(ownerId: string, rowId: string, telnyxNumberId: string | null, conn: string) {
+  const cred = await telnyx<{ data: { id: string; sip_username: string } }>("/telephony_credentials", {
+    body: { connection_id: conn, name: `founder-${ownerId}`, tag: ownerId },
+  });
+  const { data: done, error } = await admin.from("phone_numbers").update({
+    status: "active",
+    telnyx_number_id: telnyxNumberId,
+    telnyx_credential_id: cred.data.id,
+    sip_username: cred.data.sip_username,
+    last_error: null,
+  }).eq("id", rowId).select().single();
+  if (error) throw error;
+  return done;
 }
 
 /** Gives the number back to Telnyx and removes the founder's SIP credential. Safe to call twice. */

@@ -82,7 +82,7 @@ export const DOCS: DocSection[] = [
             <>A sending domain for your company, bought and set up for you (see <A href="/dashboard/docs#custom-domain">Custom domain</A>), and your inbox.</>,
             <>A US phone number for calls from the browser (see <A href="/dashboard/docs#calls">Calls</A>).</>,
             <>LinkedIn and WhatsApp from your own accounts (see <A href="/dashboard/docs#channels">LinkedIn and WhatsApp</A>).</>,
-            "Full contact details, reveals and exports, with the plan's monthly allowance.",
+            "Full contact details: 100 contact reveals and 100 export credits during the trial, then the plan's full allowance.",
             "Your pitch deck, sending, automatic follow-ups and the whole investor database.",
           ]}
         />
@@ -461,6 +461,7 @@ export const DOCS: DocSection[] = [
             "When the call ends you can tag how it went and add notes. Your tag moves the investor on your pipeline.",
             "A minute later the recording, a transcript and Claude's summary appear in Inbox under Calls. Claude also tags the outcome, including voicemail and no answer, unless you already did.",
             "Only you can play your recordings. Recording links expire after five minutes.",
+            "Calling an investor (or messaging them on WhatsApp) shows their number, so it uses one contact reveal, once per investor.",
             "Up to 60 calls in 24 hours. Carriers label numbers that dial much more as spam.",
           ]}
         />
@@ -655,11 +656,12 @@ export const DOCS: DocSection[] = [
             ["LinkedIn and WhatsApp", "Your own accounts, within the daily limits", "Same"],
             ["US number and recorded calls", "Yes, up to 60 calls a day", "Same"],
             ["Investor rows", "Unlimited", "Unlimited"],
-            ["Contact reveals", "2,500 a period", "2,500 a period"],
-            ["Export credits", "2,500 a period", "2,500 a period"],
+            ["Contact reveals", "2,500 a month", "7,500 a quarter"],
+            ["Export credits", "2,500 a month", "7,500 a quarter"],
+            ["During the 7-day trial", "100 reveals and 100 export credits", "Same"],
             ["Deck generations", "20 per 30 days", "20 per 30 days"],
           ]}
-          caption="Both plans include the same features; quarterly costs less per month. There is no yearly plan."
+          caption="Both plans include the same features; quarterly costs less per month. Allowances reset at the start of each billing period. There is no yearly plan."
         />
         <P>
           Reveals and export credits reset at the start of each billing period. The daily view count resets at midnight UTC. Deck generations count over

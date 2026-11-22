@@ -83,7 +83,7 @@ function ActivityChart({ days }: { days: { d: Date; sent: number; replies: numbe
 }
 
 export default function HomePage() {
-  const { profile, startup, signedUpAt, inbox, initialStats, ent } = useApp();
+  const { profile, startup, signedUpAt, initialStats, ent } = useApp();
   const channels = useChannels();
   const [callCount, setCallCount] = useState<number | null>(null);
   useEffect(() => {
@@ -166,12 +166,16 @@ export default function HomePage() {
               <p className="text-[14.5px] font-medium text-ink">
                 {ent.status === "trialing"
                   ? `You're on your free trial${ent.trial_days_left != null ? `, ${ent.trial_days_left} day${ent.trial_days_left === 1 ? "" : "s"} left` : ""}.`
-                  : "Your trial has ended."}
+                  : ent.status === "pending"
+                    ? "Start your free trial to begin."
+                    : "Your trial has ended."}
               </p>
               <p className="mt-0.5 text-[13px] text-muted">
                 {ent.status === "trialing"
                   ? `Everything is included. Get conversations going before it ends: email your first 10, connect LinkedIn or WhatsApp and make a call. ${doneCount} of ${steps.length} steps done.`
-                  : "Start a plan to keep emailing, messaging and calling investors. Your profile, deck and conversations are saved."}
+                  : ent.status === "pending"
+                    ? "Seven days with everything included. Add a card on the Billing page; nothing is charged until the trial ends."
+                    : "Start a plan to keep emailing, messaging and calling investors. Your profile, deck and conversations are saved."}
               </p>
             </div>
             <ButtonLink href="/dashboard/billing" size="sm" variant="primary">

@@ -4,14 +4,28 @@
 
 alter table public.plans add column if not exists period_months integer not null default 1;
 
-update public.plans set name = 'Monthly', price = 129, currency = 'usd', period_months = 1, active = true, sort_order = 1 where id = 'monthly';
+-- The monthly row's Whop plan was the $1 test plan: cleared so nobody is charged $1 while the page says $129.
+-- Fill in both ids from the new Whop plans straight after applying this (docs/HANDOVER.md section 6). A plan
+-- without a Whop id is hidden from the plan picker and refused at checkout.
+update public.plans set name = 'Monthly', price = 129, currency = 'usd', period_months = 1, active = true, sort_order = 1, whop_plan_id = null where id = 'monthly';
 
 insert into public.plans (id, name, price_gbp, currency, price, period_months, whop_plan_id, trial_days, max_rows, page_size_max,
   reveals_per_period, export_credits_per_period, daily_row_views, searches_per_minute, sort_order, active, deck_runs_per_period)
 select 'quarterly', 'Quarterly', 0, 'usd', 249, 3, null, 7, max_rows, page_size_max,
-  reveals_per_period, export_credits_per_period, daily_row_views, searches_per_minute, 2, true, deck_runs_per_period
+  -- Allowances reset each billing period, so a quarter gets three months' worth.
+  reveals_per_period * 3, export_credits_per_period * 3, daily_row_views, searches_per_minute, 2, true, deck_runs_per_period
 from public.plans where id = 'monthly'
-on conflict (id) do update set name = excluded.name, price = excluded.price, period_months = excluded.period_months, active = true;
+on conflict (id) do update set name = excluded.name, price = excluded.price, period_months = excluded.period_months,
+  reveals_per_period = excluded.reveals_per_period, export_credits_per_period = excluded.export_credits_per_period, active = true;
+
+-- During the trial, contact reveals and export credits are capped at this many, so a trial cannot copy the
+-- directory and cancel. Everything else in the trial matches the plan.
+create or replace function private.trial_contact_cap()
+returns integer
+language sql
+immutable
+set search_path = ''
+as $$ select 100 $$;
 
 create or replace function private.entitlements(p_uid uuid)
  RETURNS TABLE(plan_id text, plan_name text, status text, active boolean, paid boolean, trial_ends_at timestamp with time zone, period_start timestamp with time zone, period_end timestamp with time zone, max_rows integer, page_size_max integer, reveals_total integer, reveals_left integer, exports_total integer, exports_left integer, daily_row_views integer, rows_viewed_today integer, searches_per_minute integer, can_send boolean, manage_url text)
@@ -48,12 +62,12 @@ AS $function$
     e.pe,
     case when e.paid or e.in_trial then p.max_rows else 100 end,
     p.page_size_max,
-    case when e.paid or e.in_trial then p.reveals_per_period else 0 end,
-    case when e.paid or e.in_trial then greatest(0, p.reveals_per_period - (
+    case when e.paid then p.reveals_per_period when e.in_trial then least(p.reveals_per_period, private.trial_contact_cap()) else 0 end,
+    case when e.paid or e.in_trial then greatest(0, (case when e.paid then p.reveals_per_period else least(p.reveals_per_period, private.trial_contact_cap()) end) - (
       select count(*) from public.investor_unlocks u where u.owner_id = p_uid and u.source = 'reveal' and u.created_at >= e.ps
     ))::int else 0 end,
-    case when e.paid or e.in_trial then p.export_credits_per_period else 0 end,
-    case when e.paid or e.in_trial then greatest(0, p.export_credits_per_period - coalesce((
+    case when e.paid then p.export_credits_per_period when e.in_trial then least(p.export_credits_per_period, private.trial_contact_cap()) else 0 end,
+    case when e.paid or e.in_trial then greatest(0, (case when e.paid then p.export_credits_per_period else least(p.export_credits_per_period, private.trial_contact_cap()) end) - coalesce((
       select sum(x.credits) from public.export_log x where x.owner_id = p_uid and x.created_at >= e.ps
     ), 0))::int else 0 end,
     case when e.paid or e.in_trial then p.daily_row_views else 300 end,

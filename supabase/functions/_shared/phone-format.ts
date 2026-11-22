@@ -6,7 +6,7 @@
  */
 export function toE164(raw: string | null | undefined, country: string | null | undefined): string | null {
   if (!raw) return null;
-  const trimmed = raw.trim().replace(/(ext\.?|x)\s*\d+$/i, "");
+  const trimmed = raw.trim().replace(/(ext\.?|x)\s*\d+$/i, "").replace(/\(0\)/g, "");
   let digits = trimmed.replace(/\D/g, "");
   if (trimmed.startsWith("+")) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
   if (digits.startsWith("00")) {

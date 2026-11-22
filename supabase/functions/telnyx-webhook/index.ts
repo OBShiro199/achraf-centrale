@@ -10,7 +10,7 @@
 //   4. call.hangup on either leg ends the other and records how the call ended.
 //   5. call.recording.saved: copy the recording into storage (Telnyx links last 10 minutes), transcribe it, and let
 //      Claude summarise and tag the outcome.
-import { admin, json, serve } from "../_shared/core.ts";
+import { admin, background, json, serve } from "../_shared/core.ts";
 import { telnyx, verifyTelnyxSignature, clientState, readClientState, telnyxKey } from "../_shared/telnyx.ts";
 import { connectionId } from "../_shared/phone.ts";
 import { tagOutcome, touchConversation } from "../_shared/unibox.ts";
@@ -69,6 +69,32 @@ async function transcribe(url: string) {
   return ((await res.json()) as { text?: string }).text?.trim() ?? "";
 }
 
+/** Copies a recording into storage (Telnyx links last 10 minutes), transcribes it, and has Claude summarise and tag it. */
+async function saveRecording(callId: string, url: string) {
+  const { data: call } = await admin.from("calls").select("id, owner_id, investor_id, to_number, investor:investors_achraf(full_name)").eq("id", callId).maybeSingle();
+  if (!call) return;
+  const audio = await fetch(url);
+  if (audio.ok) {
+    const path = `${call.owner_id}/${call.id}.mp3`;
+    await admin.storage.from("call-recordings").upload(path, await audio.arrayBuffer(), { contentType: "audio/mpeg", upsert: true });
+    await admin.from("calls").update({ recording_path: path }).eq("id", call.id);
+  }
+  const transcript = await transcribe(url).catch((err) => {
+    console.error(err);
+    return "";
+  });
+  // deno-lint-ignore no-explicit-any
+  const name = (call.investor as any)?.full_name ?? call.to_number;
+  const convo = await touchConversation({
+    owner_id: call.owner_id, channel: "phone", external_id: call.to_number, investor_id: call.investor_id,
+    contact_name: name, contact_handle: call.to_number, preview: transcript ? `Call: ${transcript.slice(0, 200)}` : "Call recorded", direction: "outbound",
+  });
+  await admin.from("calls").update({ transcript, conversation_id: convo }).eq("id", call.id);
+  if (transcript.length > 40) {
+    await tagOutcome({ owner_id: call.owner_id, conversation_id: convo, investor_id: call.investor_id, channel: "phone", text: transcript, call_id: call.id });
+  }
+}
+
 serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const raw = await req.text();
@@ -82,7 +108,8 @@ serve(async (req) => {
 
   switch (ev.event_type) {
     case "call.initiated": {
-      if (state || p.direction !== "incoming") return json({ ok: true });
+      // Our own investor legs carry client_state; anything else here is a browser leg, parked.
+      if (state) return json({ ok: true });
       // A browser leg, parked. Whose credential is it, and did they just press Call for this number?
       const sip = p.sip_username ?? (p.from ?? "").replace(/^sip:/, "").replace(/@.*$/, "");
       const { data: number } = await admin.from("phone_numbers").select("id, owner_id, e164").eq("sip_username", sip).eq("status", "active").maybeSingle();
@@ -98,7 +125,7 @@ serve(async (req) => {
       }
       await admin.from("calls").update({ telnyx_call_leg_id: p.call_control_id, status: "ringing" }).eq("id", call.id);
       const s: State = { call_id: call.id, leg: "investor", browser: p.call_control_id };
-      const dialled = await telnyx<{ data: { call_session_id?: string } }>("/calls", {
+      const dialled = await telnyx<{ data: { call_session_id?: string; call_control_id?: string } }>("/calls", {
         body: {
           connection_id: await connectionId(),
           to: call.to_number,
@@ -116,7 +143,7 @@ serve(async (req) => {
         await action(p.call_control_id, "hangup");
         throw err;
       });
-      if (dialled.data?.call_session_id) await admin.from("calls").update({ telnyx_call_session_id: dialled.data.call_session_id }).eq("id", call.id);
+      await admin.from("calls").update({ telnyx_call_session_id: dialled.data?.call_session_id ?? null, telnyx_investor_leg_id: dialled.data?.call_control_id ?? null }).eq("id", call.id);
       return json({ ok: true });
     }
 
@@ -131,6 +158,11 @@ serve(async (req) => {
 
     case "call.speak.ended": {
       if (state?.leg !== "investor" || state.step !== "notice") return json({ ok: true });
+      const { data: live } = await admin.from("calls").select("status").eq("id", state.call_id).maybeSingle();
+      if (live?.status !== "answered") {
+        await action(p.call_control_id, "hangup");
+        return json({ ok: true });
+      }
       await action(state.browser, "answer", { client_state: clientState({ ...state, leg: "browser" }) });
       await action(p.call_control_id, "bridge", { call_control_id: state.browser });
       return json({ ok: true });
@@ -146,14 +178,18 @@ serve(async (req) => {
     case "call.hangup": {
       if (!state) {
         // The founder hung up the browser leg before or during the call: end the investor leg too.
-        const { data: call } = await admin.from("calls").select("id, status").eq("telnyx_call_leg_id", p.call_control_id).maybeSingle();
+        const { data: call } = await admin.from("calls").select("id, status, telnyx_investor_leg_id").eq("telnyx_call_leg_id", p.call_control_id).maybeSingle();
+        if (call?.telnyx_investor_leg_id && (call.status === "dialing" || call.status === "ringing" || call.status === "answered")) {
+          await action(call.telnyx_investor_leg_id, "hangup");
+        }
         if (call && (call.status === "dialing" || call.status === "ringing")) {
           await admin.from("calls").update({ status: "no_answer", ended_at: ev.occurred_at }).eq("id", call.id);
         }
         return json({ ok: true });
       }
       if (state.leg === "browser") return json({ ok: true });
-      const { data: call } = await admin.from("calls").select("answered_at, outcome_source").eq("id", state.call_id).maybeSingle();
+      const { data: call } = await admin.from("calls").select("answered_at, outcome_source, status").eq("id", state.call_id).maybeSingle();
+      if (call?.status === "no_answer" && !call.answered_at) return json({ ok: true });
       const cause = p.hangup_cause ?? "";
       const status = call?.answered_at ? "completed" : cause === "user_busy" ? "busy" : /timeout|no_answer|originator_cancel|normal_clearing/.test(cause) ? "no_answer" : "failed";
       const duration = call?.answered_at ? Math.max(0, Math.round((Date.parse(ev.occurred_at) - Date.parse(call.answered_at)) / 1000)) : 0;
@@ -173,29 +209,7 @@ serve(async (req) => {
 
     case "call.recording.saved": {
       if (state?.leg !== "investor" || !p.recording_urls?.mp3) return json({ ok: true });
-      const { data: call } = await admin.from("calls").select("id, owner_id, investor_id, to_number, investor:investors_achraf(full_name)").eq("id", state.call_id).maybeSingle();
-      if (!call) return json({ ok: true, ignored: "unknown call" });
-      const url = p.recording_urls.mp3;
-      const audio = await fetch(url);
-      if (audio.ok) {
-        const path = `${call.owner_id}/${call.id}.mp3`;
-        await admin.storage.from("call-recordings").upload(path, await audio.arrayBuffer(), { contentType: "audio/mpeg", upsert: true });
-        await admin.from("calls").update({ recording_path: path }).eq("id", call.id);
-      }
-      const transcript = await transcribe(url).catch((err) => {
-        console.error(err);
-        return "";
-      });
-      // deno-lint-ignore no-explicit-any
-      const name = (call.investor as any)?.full_name ?? call.to_number;
-      const convo = await touchConversation({
-        owner_id: call.owner_id, channel: "phone", external_id: call.to_number, investor_id: call.investor_id,
-        contact_name: name, contact_handle: call.to_number, preview: transcript ? `Call: ${transcript.slice(0, 200)}` : "Call recorded", direction: "outbound",
-      });
-      await admin.from("calls").update({ transcript, conversation_id: convo }).eq("id", call.id);
-      if (transcript.length > 40) {
-        await tagOutcome({ owner_id: call.owner_id, conversation_id: convo, investor_id: call.investor_id, channel: "phone", text: transcript, call_id: call.id });
-      }
+      background(saveRecording(state.call_id, p.recording_urls.mp3).catch((err) => console.error("recording follow-up failed", state.call_id, err)));
       return json({ ok: true });
     }
   }

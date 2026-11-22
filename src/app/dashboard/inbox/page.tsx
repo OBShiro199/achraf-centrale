@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, BriefcaseBusiness, Mail, MessageCircle, Pause, Phone, Play, Send } from "lucide-react";
 import { useApp } from "@/components/app/context";
@@ -99,21 +99,28 @@ function EmailThread({ convo, onSent }: { convo: Conversation; onSent: () => voi
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
 
+  const unread = useRef(convo.unread);
+  useEffect(() => {
+    unread.current = convo.unread;
+  }, [convo.unread]);
   const load = useCallback(async () => {
     try {
       const r = await callFunction<{ thread: ThreadDetail }>("inbox", { action: "thread", thread_id: convo.external_id });
       setThread(r.thread);
-      if (!r.thread.isRead || convo.unread) await callFunction("inbox", { action: "mark_read", thread_id: convo.external_id }).catch(() => {});
+      if (!r.thread.isRead || unread.current) await callFunction("inbox", { action: "mark_read", thread_id: convo.external_id }).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open this thread");
     }
-  }, [convo.external_id, convo.unread]);
+  }, [convo.external_id]);
 
   useEffect(() => {
     setThread(null);
     setError(null);
     setReply("");
     void load();
+    const onReply = () => void load();
+    window.addEventListener("centrale:reply", onReply);
+    return () => window.removeEventListener("centrale:reply", onReply);
   }, [load]);
 
   async function send() {
@@ -224,8 +231,8 @@ function CallsThread({ convo }: { convo: Conversation }) {
   useEffect(() => {
     setCalls(null);
     void load();
-    if (convo.unread) void createClient().from("conversations").update({ unread: false }).eq("id", convo.id);
-  }, [load, convo.id, convo.unread]);
+    void createClient().from("conversations").update({ unread: false }).eq("id", convo.id).eq("unread", true);
+  }, [load, convo.id]);
 
   useEffect(() => () => playing?.audio.pause(), [playing]);
 

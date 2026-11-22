@@ -85,7 +85,7 @@ serve(async (req) => {
   await touchConversation({
     owner_id: user.id, channel: "email", external_id: result.threadId, investor_id: investor.id, title: subject.trim(),
     contact_name: investor.full_name, contact_handle: investor.email, preview: body, direction: "outbound",
-  });
+  }).catch((err) => console.error("unibox mirror failed", err));
 
   // Sending counts as saving: contacted investors stay on the founder's list.
   await admin.from("saved_investors").upsert({ owner_id: user.id, investor_id: investor.id }, { ignoreDuplicates: true });

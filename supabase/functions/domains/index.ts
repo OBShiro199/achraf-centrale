@@ -181,11 +181,20 @@ serve(async (req) => {
       const domain = cleanDomain(input.domain ?? "");
       const [quote] = await availableDomains([domain]);
       if (!quote) throw new HttpError(409, `${domain} is not available to buy. Pick another.`);
-      await registerDomain(domain, quote.price_usd, `buy-${user.id}-${domain}`);
+      // Claim it with OpenMail first: free, and the one-live-domain-per-founder index stops a second buy running at
+      // the same time. Only then charge Porkbun; if that fails, undo the OpenMail side so nothing is half done.
       const { saved, records } = await addDomain(user.id, user.email ?? user.id, domain, inbox?.openmail_pod_id ?? null, {
         bought_by_centrale: true, registrar: "porkbun", price_usd: quote.price_usd, expires_at: new Date(Date.now() + 365 * 86_400_000).toISOString(),
       });
-      await recordSpend({ owner: user.id, feature: "domain_purchase", ref: saved?.id ?? null }, { usd: quote.price_usd });
+      try {
+        await registerDomain(domain, quote.price_usd, `buy-${user.id}-${domain}`);
+      } catch (err) {
+        const { data: claimed } = await admin.from("sending_domains").select("openmail_domain_id").eq("id", saved.id).single();
+        if (claimed?.openmail_domain_id) await openmail(`/v1/domains/${claimed.openmail_domain_id}`, { method: "DELETE" }).catch(() => null);
+        await admin.from("sending_domains").update({ status: "removed", updated_at: new Date().toISOString() }).eq("id", saved.id);
+        throw err;
+      }
+      await recordSpend({ owner: user.id, feature: "domain_purchase", ref: saved.id }, { usd: quote.price_usd });
       // Publish OpenMail's records at Porkbun; OpenMail verifies them by itself within minutes.
       const failed: string[] = [];
       for (const r of records) {

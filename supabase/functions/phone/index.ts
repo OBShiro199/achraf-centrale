@@ -8,6 +8,7 @@
 //   calls      { investor_id? }     recent calls with outcome, summary and transcript
 //   recording  { call_id }          a short-lived link to the call recording
 //   tag        { call_id, outcome, notes? }  the founder's own outcome, which also moves the pipeline
+//   abandon    { call_id }          the browser could not place the call (microphone refused, no connection)
 import { admin, HttpError, json, readJson, requireUser, secret, serve } from "../_shared/core.ts";
 import { investorId, loadInvestorContact } from "../_shared/investor.ts";
 import { sendingAllowance } from "../_shared/inbox.ts";
@@ -19,7 +20,7 @@ import { OUTCOMES, type Outcome } from "../_shared/unibox.ts";
 const DAILY_CALLS = 60;
 
 interface Body {
-  action?: "status" | "provision" | "token" | "start" | "calls" | "recording" | "tag";
+  action?: "status" | "provision" | "token" | "start" | "calls" | "recording" | "tag" | "abandon";
   area_code?: string;
   investor_id?: number | string;
   call_id?: string;
@@ -59,6 +60,10 @@ serve(async (req) => {
       if (!n || n.status !== "active") throw new HttpError(409, "Set up your US number first, in Settings under Channels.");
       const contact = await loadInvestorContact(investorId(input.investor_id));
       if (!contact.phone) throw new HttpError(422, `We do not have a phone number for ${contact.full_name}.`);
+      // Dialling shows the number, so it uses a contact reveal, once per investor.
+      const { data: unlocked, error: unlockError } = await admin.rpc("unlock_contact", { p_uid: user.id, p_investor: contact.id });
+      if (unlockError) throw unlockError;
+      if (!unlocked) throw new HttpError(402, "You have used all your contact reveals for this period, and this investor's number is not revealed yet.");
       const { count } = await admin.from("calls").select("id", { count: "exact", head: true }).eq("owner_id", user.id).gte("started_at", new Date(Date.now() - 86_400_000).toISOString());
       if ((count ?? 0) >= DAILY_CALLS) throw new HttpError(429, `You have made ${DAILY_CALLS} calls in the last 24 hours. Carriers flag numbers that dial much more, so the rest wait until tomorrow.`);
       const { data: call, error } = await admin.from("calls").insert({
@@ -84,6 +89,11 @@ serve(async (req) => {
       const { data, error } = await admin.storage.from("call-recordings").createSignedUrl(call.recording_path, 300);
       if (error) throw error;
       return json({ url: data.signedUrl });
+    }
+
+    case "abandon": {
+      await admin.from("calls").update({ status: "failed", ended_at: new Date().toISOString() }).eq("id", input.call_id ?? "").eq("owner_id", user.id).eq("status", "dialing");
+      return json({ ok: true });
     }
 
     case "tag": {

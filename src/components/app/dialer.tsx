@@ -56,6 +56,8 @@ export function DialerProvider({ children }: { children: ReactNode }) {
   const [tag, setTag] = useState<Outcome | null>(null);
   const client = useRef<RtcClient | null>(null);
   const rtcCall = useRef<RtcCall | null>(null);
+  /** Set when the founder hangs up before the browser has placed the call, so it is never placed. */
+  const cancelled = useRef(false);
 
   useEffect(() => {
     if (call?.phase !== "live") return;
@@ -71,7 +73,10 @@ export function DialerProvider({ children }: { children: ReactNode }) {
     const c = new TelnyxRTC({ login_token: token }) as unknown as RtcClient;
     c.remoteElement = "centrale-remote-audio";
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Could not reach the phone service. Check your connection.")), 12000);
+      const timer = setTimeout(() => {
+        c.disconnect();
+        reject(new Error("Could not reach the phone service. Check your connection."));
+      }, 12000);
       c.on("telnyx.ready", () => {
         clearTimeout(timer);
         resolve();
@@ -87,9 +92,14 @@ export function DialerProvider({ children }: { children: ReactNode }) {
       if (note.type !== "callUpdate" || !note.call || note.call !== rtcCall.current) return;
       const state = note.call.state;
       setCall((cur) => {
-        if (!cur) return cur;
+        if (!cur || cur.phase === "ended" || cur.phase === "failed") return cur;
         if (state === "active") return { ...cur, phase: "live", answeredAt: cur.answeredAt ?? Date.now() };
-        if (state === "hangup" || state === "destroy") return cur.phase === "ended" || cur.phase === "failed" ? cur : { ...cur, phase: "ended" };
+        if (state === "hangup" || state === "destroy") {
+          if (cur.answeredAt) return { ...cur, phase: "ended" };
+          const cause = String(note.call?.cause ?? "").toUpperCase();
+          const why = cause.includes("BUSY") ? "The line was busy." : cause.includes("REJECT") || cause.includes("DECLINE") ? "The call was declined." : "They did not pick up.";
+          return { ...cur, phase: "ended", error: why };
+        }
         if (state === "ringing" || state === "trying" || state === "early") return { ...cur, phase: "ringing" };
         return cur;
       });
@@ -107,25 +117,33 @@ export function DialerProvider({ children }: { children: ReactNode }) {
       setMuted(false);
       setNotes("");
       setTag(null);
+      cancelled.current = false;
+      rtcCall.current = null;
+      let callId: string | null = null;
       try {
-        const start = await callFunction<{ call_id: string; to: string; from: string; name: string; firm: string }>("phone", { action: "start", investor_id: investorId });
-        setCall({ callId: start.call_id, name: start.name, firm: start.firm, to: start.to, phase: "starting", answeredAt: null });
-        // Ask for the microphone before dialling, so a refused prompt does not ring the investor.
+        // Microphone first, so a refused prompt never records a call or rings anyone.
         await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()));
+        const start = await callFunction<{ call_id: string; to: string; from: string; name: string; firm: string }>("phone", { action: "start", investor_id: investorId });
+        callId = start.call_id;
+        setCall({ callId: start.call_id, name: start.name, firm: start.firm, to: start.to, phase: "starting", answeredAt: null });
         const c = await ensureClient();
+        if (cancelled.current) throw new Error("cancelled");
         rtcCall.current = c.newCall({ destinationNumber: start.to, callerNumber: start.from, audio: true, video: false });
       } catch (err) {
+        if (callId) void callFunction("phone", { action: "abandon", call_id: callId }).catch(() => {});
+        if (err instanceof Error && err.message === "cancelled") return;
         const msg = err instanceof Error ? (err.name === "NotAllowedError" ? "Allow microphone access to call from the browser." : err.message) : "Could not start the call";
         setCall((cur) => (cur ? { ...cur, phase: "failed", error: msg } : null));
-        if (!call) toast({ title: "Could not call", body: msg, tone: "error" });
+        if (!callId) toast({ title: "Could not call", body: msg, tone: "error" });
       }
     },
     [call, ensureClient, toast],
   );
 
   function hangup() {
+    cancelled.current = true;
     rtcCall.current?.hangup();
-    setCall((cur) => (cur ? { ...cur, phase: "ended" } : cur));
+    setCall((cur) => (cur ? { ...cur, phase: "ended", error: cur.answeredAt ? undefined : "You hung up before they answered." } : cur));
   }
 
   function toggleMute() {
@@ -175,7 +193,7 @@ export function DialerProvider({ children }: { children: ReactNode }) {
             {call.phase === "starting" && "Connecting"}
             {call.phase === "ringing" && "Ringing"}
             {call.phase === "live" && <span className="tabular">Live {live}</span>}
-            {call.phase === "ended" && "Call ended. The recording and summary appear in your Inbox in a minute."}
+            {call.phase === "ended" && (call.error ?? "Call ended. The recording and summary appear in your Inbox in a minute.")}
             {call.phase === "failed" && (call.error ?? "The call could not connect.")}
           </p>
           {!done ? (

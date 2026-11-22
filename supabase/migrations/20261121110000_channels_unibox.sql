@@ -84,6 +84,7 @@ create table if not exists public.calls (
   to_number text not null,
   telnyx_call_session_id text unique,
   telnyx_call_leg_id text,
+  telnyx_investor_leg_id text,
   status text not null default 'dialing' check (status in ('dialing', 'ringing', 'answered', 'completed', 'no_answer', 'busy', 'failed')),
   started_at timestamptz not null default now(),
   answered_at timestamptz,
@@ -181,7 +182,7 @@ insert into public.conversations (owner_id, investor_id, channel, external_id, t
 select distinct on (m.owner_id, m.openmail_thread_id)
   m.owner_id, x.investor_id, 'email', m.openmail_thread_id, m.subject, i.full_name,
   case when m.direction = 'inbound' then m.from_addr else m.to_addr end,
-  m.sent_at, left(regexp_replace(coalesce(m.body, ''), '\s+', ' ', 'g'), 240), m.direction, false
+  m.sent_at, left(regexp_replace(coalesce(m.body, ''), '\s+', ' ', 'g'), 240), m.direction, m.direction = 'inbound'
 from public.outreach_messages m
 left join lateral (
   select o.investor_id from public.outreach_messages o
@@ -189,6 +190,8 @@ left join lateral (
 ) x on true
 left join public.investors_achraf i on i.id = x.investor_id
 where m.openmail_thread_id is not null
+  -- Threads from before live sending went to the test inbox, not to investors.
+  and not exists (select 1 from public.outreach_messages t where t.owner_id = m.owner_id and t.openmail_thread_id = m.openmail_thread_id and t.status = 'test')
 order by m.owner_id, m.openmail_thread_id, m.sent_at desc
 on conflict (owner_id, channel, external_id) do nothing;
 
@@ -223,9 +226,45 @@ as $$
       select 1 from public.channel_messages cm join public.conversations cv on cv.id = cm.conversation_id
       where cv.owner_id = o.owner_id and cv.investor_id = o.investor_id and cm.direction = 'inbound'
     )
-    and not exists (select 1 from public.calls c where c.owner_id = o.owner_id and c.investor_id = o.investor_id and c.status = 'completed')
+    and not exists (
+      select 1 from public.calls c where c.owner_id = o.owner_id and c.investor_id = o.investor_id
+        and c.status = 'completed' and coalesce(c.outcome, '') not in ('voicemail', 'no_answer')
+    )
   order by o.sent_at
   limit p_limit;
 $$;
 revoke all on function public.follow_up_candidates(integer) from public, anon, authenticated;
 grant execute on function public.follow_up_candidates(integer) to service_role;
+
+-- Founders can read the names and firms of investors they messaged or called, as they can for ones they emailed.
+drop policy if exists "investors you work with" on public.investors_achraf;
+create policy "investors you work with" on public.investors_achraf for select to authenticated using (
+  exists (select 1 from public.saved_investors x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.outreach_messages x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.scheduled_emails x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.investor_matches x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.investor_unlocks x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.conversations x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+  or exists (select 1 from public.calls x where x.owner_id = (select auth.uid()) and x.investor_id = investors_achraf.id)
+);
+
+-- Calling or messaging an investor's phone shows their number, so it uses a contact reveal like the Reveal button
+-- (never twice for the same investor). True when the founder may use it.
+create or replace function public.unlock_contact(p_uid uuid, p_investor bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  e record;
+begin
+  if exists (select 1 from public.investor_unlocks u where u.owner_id = p_uid and u.investor_id = p_investor) then return true; end if;
+  select * into e from private.entitlements(p_uid);
+  if not e.paid or e.reveals_left <= 0 then return false; end if;
+  insert into public.investor_unlocks (owner_id, investor_id, source) values (p_uid, p_investor, 'reveal') on conflict do nothing;
+  return true;
+end;
+$$;
+revoke all on function public.unlock_contact(uuid, bigint) from public, anon, authenticated;
+grant execute on function public.unlock_contact(uuid, bigint) to service_role;

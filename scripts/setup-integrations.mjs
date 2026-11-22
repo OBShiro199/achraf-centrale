@@ -28,6 +28,7 @@ async function unipileSetup() {
   const wanted = [
     { name: "centrale-messages", source: "messaging", events: ["message_received"] },
     { name: "centrale-accounts", source: "account_status" },
+    { name: "centrale-relations", source: "users", events: ["new_relation"] },
   ];
   for (const w of wanted) {
     if (existing.some((e) => e.name === w.name || (e.request_url === url && e.source === w.source))) {

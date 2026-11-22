@@ -19,11 +19,16 @@ export async function finishBoughtDomains(limit = 3) {
     .neq("status", "removed")
     .lt("checked_at", new Date(Date.now() - 5 * 60_000).toISOString())
     .gt("created_at", new Date(Date.now() - 3 * 86_400_000).toISOString())
+    .order("checked_at", { ascending: true })
     .limit(limit);
   const log: string[] = [];
   for (const row of rows ?? []) {
     const { data: inbox } = await admin.from("inboxes").select("domain, openmail_pod_id").eq("owner_id", row.owner_id).eq("status", "active").maybeSingle();
-    if (inbox?.domain === row.domain) continue;
+    if (inbox?.domain === row.domain) {
+      // Done: push it to the back so newer domains get their turn.
+      await admin.from("sending_domains").update({ checked_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }).eq("id", row.id);
+      continue;
+    }
     try {
       if (row.status !== "verified") {
         const fresh = await openmail<{ status: string; verifiedAt: string | null; records: unknown[] }>(`/v1/domains/${row.openmail_domain_id}`);

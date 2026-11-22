@@ -78,6 +78,7 @@ export function InvestorDrawerBody({
   const { ent } = useApp();
   const { dial, busy } = useDialer();
   const [composer, setComposer] = useState<"linkedin" | "whatsapp" | null>(null);
+  // No trial or plan yet (or it ended): contact details stay masked.
   const trial = ent != null && !ent.paid;
   const [detail, setDetail] = useState<InvestorDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -383,7 +384,7 @@ export function InvestorDrawerBody({
                 </p>
                 <p className="mt-1 text-[12px] text-label">
                   {trial
-                    ? "Full contact details show when your plan starts, after the 7-day trial."
+                    ? "Start your free trial to see full contact details."
                     : row.has_email
                       ? "You can email them from Centrale without revealing anything. Revealing uses one credit."
                       : "Revealing uses one credit."}

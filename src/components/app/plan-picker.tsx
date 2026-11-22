@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/kit";
 import { usePlans, type PlanId } from "@/lib/plan";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,11 @@ export function PlanPicker({ value, onChange }: { value: PlanId; onChange: (id: 
   const plans = usePlans();
   const monthly = plans?.find((p) => p.id === "monthly");
 
+  // If the chosen plan is not on offer, choose one that is (quarterly when it exists).
+  useEffect(() => {
+    if (plans?.length && !plans.some((p) => p.id === value)) onChange((plans.find((p) => p.id === "quarterly") ?? plans[0]).id);
+  }, [plans, value, onChange]);
+
   if (!plans) {
     return (
       <div className="grid grid-cols-2 gap-2.5">
@@ -21,8 +27,10 @@ export function PlanPicker({ value, onChange }: { value: PlanId; onChange: (id: 
     );
   }
 
+  if (!plans.length) return <p className="text-[13px] text-muted">Plans are being set up. Try again shortly.</p>;
+
   return (
-    <div role="radiogroup" aria-label="Plan" className="grid grid-cols-2 gap-2.5">
+    <div role="radiogroup" aria-label="Plan" className={cn("grid gap-2.5", plans.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
       {plans.map((p) => {
         const selected = p.id === value;
         const saving = monthly && p.months > 1 ? Math.round((1 - Number(p.perMonth.replace(/[^0-9.]/g, "")) / Number(monthly.price.replace(/[^0-9.]/g, ""))) * 100) : 0;

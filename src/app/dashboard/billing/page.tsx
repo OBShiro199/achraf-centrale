@@ -20,7 +20,7 @@ const INCLUDED = [
   "LinkedIn and WhatsApp from your own accounts, plus a US number for calls",
   "One inbox for every reply, with calls recorded and tagged",
   "Claude matching, drafting and automatic follow-ups",
-  "2,500 contact reveals and 2,500 export credits a month",
+  "2,500 contact reveals and 2,500 export credits a month (7,500 a quarter on quarterly)",
   "The full investor database, no page limit",
   "Researched pitch deck in your brand, 20 a month",
 ];
@@ -146,7 +146,8 @@ export default function BillingPage() {
           )}
           {ent?.status === "trialing" && (
             <p className="mt-5 text-[12.5px] text-label">
-              Everything is included during the trial. To cancel before you are charged, use Manage subscription.
+              Everything is included during the trial, with 100 contact reveals and 100 export credits. To cancel before you are charged, use
+              Manage subscription.
             </p>
           )}
         </Card>

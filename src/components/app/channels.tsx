@@ -65,7 +65,7 @@ function statusPill(a: ChannelAccount | null) {
   return <Pill tone="red">Reconnect</Pill>;
 }
 
-function ConnectRow({ provider, account, configured, onChange, compact }: { provider: Provider; account: ChannelAccount | null; configured: boolean; onChange: () => void; compact?: boolean }) {
+function ConnectRow({ provider, account, configured, onChange, compact, returnTo }: { provider: Provider; account: ChannelAccount | null; configured: boolean; onChange: () => void; compact?: boolean; returnTo?: string }) {
   const toast = useToast();
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
   const { label, Icon, blurb } = PROVIDER[provider];
@@ -73,7 +73,7 @@ function ConnectRow({ provider, account, configured, onChange, compact }: { prov
   async function connect() {
     setBusy("connect");
     try {
-      const { url } = await callFunction<{ url: string }>("channels", { action: "connect", provider });
+      const { url } = await callFunction<{ url: string }>("channels", { action: "connect", provider, return_to: returnTo });
       window.location.href = url;
     } catch (err) {
       toast({ title: `Could not open ${label}`, body: err instanceof Error ? err.message : undefined, tone: "error" });
@@ -138,6 +138,12 @@ function PhoneRow({ phone, onChange, compact }: { phone: PhoneStatus | null; onC
     }
   }
   const n = phone?.number;
+  // A number being ordered is ready within a minute or two: check again until it is.
+  useEffect(() => {
+    if (n?.status !== "ordering") return;
+    const id = setInterval(onChange, 8000);
+    return () => clearInterval(id);
+  }, [n?.status, onChange]);
   return (
     <div className={cn("flex items-center gap-3", compact ? "py-2.5" : "px-5 py-4")}>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-line bg-panel-2">
@@ -196,15 +202,16 @@ export function ChannelsCard() {
 function DomainPicker({ onBought }: { onBought: (domain: string) => void }) {
   const toast = useToast();
   const [options, setOptions] = useState<DomainOption[] | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
 
   useEffect(() => {
     callFunction<{ options: DomainOption[] }>("domains", { action: "suggest" })
       .then((r) => setOptions(r.options))
-      .catch(() => {
+      .catch((err: unknown) => {
         setOptions([]);
-        setUnavailable(true);
+        const msg = err instanceof Error ? err.message : "";
+        setUnavailable(/not set up/i.test(msg) ? "Domain buying is not switched on yet." : "We could not check domain names just now.");
       });
   }, []);
 
@@ -224,7 +231,7 @@ function DomainPicker({ onBought }: { onBought: (domain: string) => void }) {
   if (unavailable || !options.length) {
     return (
       <p className="text-[12.5px] text-muted">
-        {unavailable ? "Domain buying is not switched on yet." : "No short names are free for your company right now."}{" "}
+        {unavailable ?? "No short names are free for your company right now."}{" "}
         <Link href="/dashboard/domain" className="text-ink underline decoration-faint underline-offset-2">
           Connect a domain you own
         </Link>
@@ -255,6 +262,13 @@ function DomainPicker({ onBought }: { onBought: (domain: string) => void }) {
 export function LaunchKit({ className }: { className?: string }) {
   const { channels, account, reload } = useChannels();
   const [bought, setBought] = useState<string | null>(null);
+  // Founders who already have a domain (bought or their own) are not offered another.
+  const [existing, setExisting] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    callFunction<{ domain: { domain: string } | null }>("domains", { action: "status" })
+      .then((r) => setExisting(r.domain?.domain ?? null))
+      .catch(() => setExisting(null));
+  }, []);
   return (
     <div className={cn("rounded-[10px] border border-line bg-panel p-5 shadow-[0_18px_40px_-30px_rgba(57,28,37,0.3)]", className)}>
       <p className="text-[14px] font-medium text-ink">Switch on your channels</p>
@@ -264,12 +278,18 @@ export function LaunchKit({ className }: { className?: string }) {
           <Globe className="h-3.5 w-3.5" /> Your own sending domain, on us
         </p>
         <p className="mb-2 mt-0.5 text-[12.5px] text-muted">Investors trust email from a company domain. Pick one and we buy and set it up.</p>
-        {bought ? <p className="text-[13px] text-ink">{bought} is being set up.</p> : <DomainPicker onBought={setBought} />}
+        {bought || existing ? (
+          <p className="text-[13px] text-ink">{bought ?? existing} is {bought ? "being set up" : "connected"}.</p>
+        ) : existing === null ? (
+          <DomainPicker onBought={setBought} />
+        ) : (
+          <Skeleton className="h-9" />
+        )}
       </div>
       {channels?.configured && (
         <div className="mt-3 divide-y divide-line-2 border-t border-line">
-          <ConnectRow provider="linkedin" account={account("linkedin")} configured onChange={reload} compact />
-          <ConnectRow provider="whatsapp" account={account("whatsapp")} configured onChange={reload} compact />
+          <ConnectRow provider="linkedin" account={account("linkedin")} configured onChange={reload} compact returnTo="/onboarding" />
+          <ConnectRow provider="whatsapp" account={account("whatsapp")} configured onChange={reload} compact returnTo="/onboarding" />
         </div>
       )}
     </div>

@@ -543,7 +543,7 @@ function Directory({ init }: { init: Init }) {
           </p>
           {trialCapped && (
             <p className="text-[12.5px] text-label">
-              {ent?.paid ? "Your plan" : "Your trial"} shows the first {fmt(maxRows!)} results.{" "}
+              {ent?.paid ? "Your plan" : "Without a plan, search"} shows the first {fmt(maxRows!)} results.{" "}
               <Link href="/dashboard/billing" className="text-ink underline underline-offset-2 hover:text-vermilion">
                 See plans
               </Link>
@@ -623,7 +623,7 @@ function Directory({ init }: { init: Init }) {
                 {deepCapped
                   ? "Pages stop at 10,000 results. Add a filter to reach the rest."
                   : trialCapped && !hasNext
-                    ? `That is as far as ${ent?.paid ? "your plan" : "the trial"} goes.`
+                    ? `That is as far as ${ent?.paid ? "your plan" : "search without a plan"} goes.`
                     : ""}
               </span>
               <nav className="flex items-center gap-2" aria-label="Pages">

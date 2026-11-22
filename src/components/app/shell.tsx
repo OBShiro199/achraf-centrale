@@ -228,10 +228,12 @@ function ReplyWatcher() {
         .channel(`replies:${profile.id}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `owner_id=eq.${profile.id}` }, async (payload) => {
           void refresh();
-          window.dispatchEvent(new CustomEvent("centrale:reply"));
+          // Only a new inbound message counts as a reply: tag changes and read marks also update the row.
           const c = payload.new as Conversation;
-          if (!c?.id || c.last_direction !== "inbound" || !c.unread || seen.get(c.id) === c.last_message_at) return;
+          const fresh = c?.id && c.last_direction === "inbound" && c.unread && Date.now() - Date.parse(c.last_message_at) < 120_000;
+          if (!fresh || seen.get(c.id) === c.last_message_at) return;
           seen.set(c.id, c.last_message_at);
+          window.dispatchEvent(new CustomEvent("centrale:reply"));
           let who = c.contact_name ?? "Someone";
           if (c.investor_id) {
             const { data } = await supabase.from("investors_achraf").select("full_name,firm").eq("id", c.investor_id).maybeSingle();

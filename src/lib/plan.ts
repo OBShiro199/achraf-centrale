@@ -31,6 +31,8 @@ export function usePlans() {
       .select("id, name, price, currency, period_months")
       .in("id", ["monthly", "quarterly"])
       .eq("active", true)
+      // A plan without a Whop plan cannot be checked out, so it is not offered.
+      .not("whop_plan_id", "is", null)
       .order("sort_order")
       .then(({ data }) => {
         setPlans(

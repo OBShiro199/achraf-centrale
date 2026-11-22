@@ -77,7 +77,8 @@ serve(async (req) => {
     await admin.from("channel_accounts").update({ status: "disconnected" }).eq("owner_id", owner).eq("provider", provider)
       .neq("unipile_account_id", body.account_id).neq("status", "disconnected");
     const { error } = await admin.from("channel_accounts").upsert(
-      { owner_id: owner, provider, unipile_account_id: body.account_id, status: body.status === "RECONNECTED" ? "ok" : "connecting", connected_at: new Date().toISOString(), status_message: null },
+      // Usable straight away; a later CREDENTIALS event marks it for reconnecting if the provider signs it out.
+      { owner_id: owner, provider, unipile_account_id: body.account_id, status: "ok", connected_at: new Date().toISOString(), status_message: null },
       { onConflict: "unipile_account_id" },
     );
     if (error) throw error;
@@ -103,7 +104,18 @@ serve(async (req) => {
     return json({ ok: true });
   }
 
-  // 3. A message.
+  // 3. A LinkedIn invite was accepted: say so on the conversation, so the founder can message them.
+  if (body.event === "new_relation" && body.account_id && body.user_provider_id) {
+    const { data: acct } = await admin.from("channel_accounts").select("owner_id").eq("unipile_account_id", body.account_id).neq("status", "disconnected").maybeSingle();
+    if (acct) {
+      const { data: invite } = await admin.from("conversations").select("id").eq("owner_id", acct.owner_id).eq("channel", "linkedin")
+        .eq("external_id", `invite:${body.user_provider_id}`).maybeSingle();
+      if (invite) await admin.from("conversations").update({ last_preview: "Accepted your invitation. You can message them now.", last_message_at: new Date().toISOString(), last_direction: "inbound", unread: true }).eq("id", invite.id);
+    }
+    return json({ ok: true });
+  }
+
+  // 4. A message.
   const e = body as MessageEvent;
   if (e.event !== "message_received" || !e.chat_id || !e.message_id || e.is_group) return json({ ok: true, ignored: e.event ?? "unknown" });
 
@@ -119,8 +131,9 @@ serve(async (req) => {
   // Find the conversation: by chat, else (LinkedIn) the invite we sent to this person, which now has a chat.
   let { data: convo } = await admin.from("conversations").select("id, investor_id, external_id").eq("owner_id", owner).eq("channel", channel).eq("external_id", e.chat_id).maybeSingle();
   if (!convo && senderId && !outbound) {
+    // Only an invite still waiting for its chat is linked this way.
     const { data: byHandle } = await admin.from("conversations").select("id, investor_id, external_id").eq("owner_id", owner).eq("channel", channel).eq("contact_handle", senderId)
-      .order("last_message_at", { ascending: false }).limit(1).maybeSingle();
+      .like("external_id", "invite:%").order("last_message_at", { ascending: false }).limit(1).maybeSingle();
     if (byHandle) {
       await admin.from("conversations").update({ external_id: e.chat_id }).eq("id", byHandle.id);
       convo = { ...byHandle, external_id: e.chat_id };

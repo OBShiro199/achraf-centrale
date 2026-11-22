@@ -4,6 +4,7 @@ import { toE164 } from "./phone-format.ts";
 Deno.test("international formats keep their country code", () => {
   assertEquals(toE164("+44 20 7946 0958", null), "+442079460958");
   assertEquals(toE164("0049 30 123456", "Germany"), "+4930123456");
+  assertEquals(toE164("+44 (0)20 7946 0958", null), "+442079460958");
 });
 
 Deno.test("national formats are read for the US and UK", () => {

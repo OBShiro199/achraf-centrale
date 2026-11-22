@@ -30,7 +30,12 @@ export async function unipile<T>(path: string, init: { method?: string; json?: u
   }
   const res = await fetch(`${await unipileBase()}${path}`, { method: init.method ?? (body ? "POST" : "GET"), headers, body });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: Record<string, unknown> & { type?: string; title?: string; detail?: string; message?: string } = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    if (res.ok) throw new UnipileError(502, "bad_response", "Unipile sent an unreadable reply");
+  }
   if (!res.ok) throw new UnipileError(res.status, data?.type ?? data?.title ?? "unipile_error", data?.detail ?? data?.message ?? `Unipile ${res.status}`);
   return data as T;
 }

@@ -36,6 +36,7 @@ interface Body {
   investor_id?: number | string;
   conversation_id?: string;
   text?: string;
+  return_to?: string;
 }
 
 const isProvider = (p: unknown): p is Provider => p === "linkedin" || p === "whatsapp";
@@ -48,16 +49,16 @@ const sinceMidnight = () => {
 async function usageToday(ownerId: string) {
   const { data } = await admin
     .from("channel_messages")
-    .select("kind, conversation:conversations!inner(channel, created_at)")
+    .select("kind, conversation_id, conversation:conversations!inner(channel, created_at)")
     .eq("owner_id", ownerId)
     .eq("direction", "outbound")
     .gte("sent_at", sinceMidnight());
-  const rows = (data ?? []) as unknown as { kind: string; conversation: { channel: string; created_at: string } }[];
+  const rows = (data ?? []) as unknown as { kind: string; conversation_id: string; conversation: { channel: string; created_at: string } }[];
   const today = sinceMidnight();
   return {
     linkedin_invites: rows.filter((r) => r.conversation.channel === "linkedin" && r.kind === "invite").length,
     linkedin_messages: rows.filter((r) => r.conversation.channel === "linkedin" && r.kind !== "invite").length,
-    whatsapp_new_chats: rows.filter((r) => r.conversation.channel === "whatsapp" && r.conversation.created_at >= today).length,
+    whatsapp_new_chats: new Set(rows.filter((r) => r.conversation.channel === "whatsapp" && r.conversation.created_at >= today).map((r) => r.conversation_id)).size,
     whatsapp_messages: rows.filter((r) => r.conversation.channel === "whatsapp").length,
   };
 }
@@ -68,6 +69,13 @@ async function activeAccount(ownerId: string, provider: Provider) {
   if (!data) throw new HttpError(409, `Connect your ${name} account first, in Settings under Channels.`);
   if (data.status !== "ok") throw new HttpError(409, `Your ${name} account needs reconnecting. Go to Settings, Channels.`);
   return data as { id: string; unipile_account_id: string };
+}
+
+/** Calling or messaging a phone number shows it, so it uses a contact reveal (once per investor). */
+async function unlockContact(ownerId: string, investorIdValue: number) {
+  const { data, error } = await admin.rpc("unlock_contact", { p_uid: ownerId, p_investor: investorIdValue });
+  if (error) throw error;
+  if (!data) throw new HttpError(402, "You have used all your contact reveals for this period, and this investor's number is not revealed yet.");
 }
 
 async function record(ownerId: string, conversationId: string, kind: "message" | "invite", text: string, externalId: string | null) {
@@ -98,6 +106,8 @@ serve(async (req) => {
       const app = (await secret("APP_URL").catch(() => "https://www.centralegtm.com")).replace(/\/$/, "");
       const hookSecret = await secret("UNIPILE_WEBHOOK_SECRET");
       const reconnect = existing?.unipile_account_id && existing.status !== "ok";
+      // Back to the page they came from: onboarding or Settings, nowhere else.
+      const back = input.return_to === "/onboarding" ? "/onboarding" : "/dashboard/settings";
       // Links expire at Unipile's daily restart anyway; an hour is plenty to finish the wizard.
       const link = await unipile<{ url: string }>("/api/v1/hosted/accounts/link", {
         json: {
@@ -107,8 +117,8 @@ serve(async (req) => {
           expiresOn: new Date(Date.now() + 3_600_000).toISOString(),
           name: `${user.id}:${input.provider}`,
           notify_url: `${SUPABASE_URL}/functions/v1/unipile-webhook?secret=${encodeURIComponent(hookSecret)}`,
-          success_redirect_url: `${app}/dashboard/settings?channel=${input.provider}&connected=1#channels`,
-          failure_redirect_url: `${app}/dashboard/settings?channel=${input.provider}&connected=0#channels`,
+          success_redirect_url: `${app}${back}${back.includes("?") ? "&" : "?"}channel=${input.provider}&connected=1`,
+          failure_redirect_url: `${app}${back}${back.includes("?") ? "&" : "?"}channel=${input.provider}&connected=0`,
           disabled_features: ["linkedin_recruiter", "linkedin_organizations_mailboxes"],
         },
       });
@@ -187,6 +197,7 @@ serve(async (req) => {
         }
 
         if (!contact.phone) throw new HttpError(422, `We do not have a mobile number for ${contact.full_name}.`);
+        await unlockContact(user.id, contact.id);
         const attendee = whatsappId(contact.phone);
         const { data: open } = await admin.from("conversations").select("id").eq("owner_id", user.id).eq("channel", "whatsapp").eq("contact_handle", attendee).maybeSingle();
         if (!open && usage.whatsapp_new_chats >= DAILY_LIMITS.whatsapp_new_chats) {
@@ -209,14 +220,35 @@ serve(async (req) => {
       if (!text) throw new HttpError(400, "Write a message first");
       const { data: convo } = await admin.from("conversations").select("*").eq("id", input.conversation_id ?? "").eq("owner_id", user.id).maybeSingle();
       if (!convo || (convo.channel !== "linkedin" && convo.channel !== "whatsapp")) throw new HttpError(404, "Conversation not found");
-      if (String(convo.external_id).startsWith("invite:")) throw new HttpError(409, "They have not accepted your invite yet, so there is no chat to reply in.");
+      if (!(await sendingAllowance(user.id)).can_send) throw new HttpError(402, "Messaging needs a trial or a plan. Start one from Billing.");
+      const usage = await usageToday(user.id);
+      const cap = convo.channel === "linkedin" ? DAILY_LIMITS.linkedin_messages : DAILY_LIMITS.whatsapp_messages;
+      if ((convo.channel === "linkedin" ? usage.linkedin_messages : usage.whatsapp_messages) >= cap) {
+        throw new HttpError(429, `You have sent ${cap} ${convo.channel === "linkedin" ? "LinkedIn" : "WhatsApp"} messages today. More tomorrow.`);
+      }
       const account = await activeAccount(user.id, convo.channel);
       try {
-        const sent = await unipile<{ message_id?: string }>(`/api/v1/chats/${encodeURIComponent(convo.external_id)}/messages`, { form: { text } });
-        await record(user.id, convo.id, "message", text, sent.message_id ?? null);
-        await touchConversation({ owner_id: user.id, channel: convo.channel, external_id: convo.external_id, preview: text, direction: "outbound" });
+        let chatId = String(convo.external_id);
+        let messageId: string | null = null;
+        if (chatId.startsWith("invite:")) {
+          // Accepted invites have no chat until someone writes: start it now. LinkedIn refuses if they have not accepted.
+          const started = await unipile<{ chat_id: string; message_id?: string }>("/api/v1/chats", {
+            form: { account_id: account.unipile_account_id, text, attendees_ids: convo.contact_handle ?? chatId.slice(7) },
+          }).catch((err) => {
+            if (err instanceof UnipileError && err.status < 500) throw new HttpError(409, "They have not accepted your invite yet, so there is no chat to reply in.");
+            throw err;
+          });
+          chatId = started.chat_id;
+          messageId = started.message_id ?? null;
+          await admin.from("conversations").update({ external_id: chatId }).eq("id", convo.id);
+        } else {
+          const sent = await unipile<{ message_id?: string }>(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, { form: { text } });
+          messageId = sent.message_id ?? null;
+        }
+        await record(user.id, convo.id, "message", text, messageId);
+        await touchConversation({ owner_id: user.id, channel: convo.channel, external_id: chatId, preview: text, direction: "outbound" });
         await admin.from("conversations").update({ unread: false }).eq("id", convo.id);
-        return json({ ok: true, account: account.id });
+        return json({ ok: true });
       } catch (err) {
         if (err instanceof UnipileError) throw new HttpError(422, friendlyUnipileError(err, convo.channel));
         throw err;
@@ -227,7 +259,8 @@ serve(async (req) => {
       const { data: convo } = await admin.from("conversations").select("id").eq("id", input.conversation_id ?? "").eq("owner_id", user.id).maybeSingle();
       if (!convo) throw new HttpError(404, "Conversation not found");
       const { data } = await admin.from("channel_messages").select("id, direction, kind, body, sent_at, status").eq("conversation_id", convo.id).order("sent_at").limit(500);
-      await admin.from("conversations").update({ unread: false }).eq("id", convo.id);
+      // Only when it changes: a no-op update still reaches every open tab over Realtime.
+      await admin.from("conversations").update({ unread: false }).eq("id", convo.id).eq("unread", true);
       return json({ messages: data ?? [] });
     }
 

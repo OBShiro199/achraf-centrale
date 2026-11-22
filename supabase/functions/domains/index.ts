@@ -13,6 +13,7 @@ import { openmail, OpenMailError } from "../_shared/openmail.ts";
 import { ensurePod, hasStartedPlan, moveInboxToDomain } from "../_shared/inbox.ts";
 import { addDnsRecord, availableDomains, domainCandidates, registerDomain } from "../_shared/porkbun.ts";
 import { mailboxFor } from "../_shared/bought-domains.ts";
+import { recordSpend } from "../_shared/spend.ts";
 
 interface OMDomain {
   id: string;
@@ -184,6 +185,7 @@ serve(async (req) => {
       const { saved, records } = await addDomain(user.id, user.email ?? user.id, domain, inbox?.openmail_pod_id ?? null, {
         bought_by_centrale: true, registrar: "porkbun", price_usd: quote.price_usd, expires_at: new Date(Date.now() + 365 * 86_400_000).toISOString(),
       });
+      await recordSpend({ owner: user.id, feature: "domain_purchase", ref: saved?.id ?? null }, { usd: quote.price_usd });
       // Publish OpenMail's records at Porkbun; OpenMail verifies them by itself within minutes.
       const failed: string[] = [];
       for (const r of records) {

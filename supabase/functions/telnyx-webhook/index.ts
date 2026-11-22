@@ -14,6 +14,7 @@ import { admin, json, serve } from "../_shared/core.ts";
 import { telnyx, verifyTelnyxSignature, clientState, readClientState, telnyxKey } from "../_shared/telnyx.ts";
 import { connectionId } from "../_shared/phone.ts";
 import { tagOutcome, touchConversation } from "../_shared/unibox.ts";
+import { CHANNEL_COSTS, recordSpend } from "../_shared/spend.ts";
 
 interface TelnyxEvent {
   data: {
@@ -161,6 +162,12 @@ serve(async (req) => {
         ...(status === "no_answer" && !call?.outcome_source ? { outcome: "no_answer", outcome_source: "ai" } : {}),
       }).eq("id", state.call_id);
       await action(state.browser, "hangup");
+      // Billed per started minute; transcription only runs on answered calls.
+      const minutes = Math.ceil(duration / 60);
+      const { data: owner } = await admin.from("calls").select("owner_id").eq("id", state.call_id).maybeSingle();
+      await recordSpend({ owner: owner?.owner_id ?? null, feature: "call_minutes", ref: state.call_id }, {
+        usd: CHANNEL_COSTS.answering_machine_usd + minutes * (CHANNEL_COSTS.call_usd_per_minute + CHANNEL_COSTS.transcription_usd_per_minute) + (minutes ? 0 : 0.01),
+      });
       return json({ ok: true });
     }
 

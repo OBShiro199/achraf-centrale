@@ -7,6 +7,8 @@
 // Only conversations Centrale started (or with someone in the investor directory) are kept, so a founder's
 // personal LinkedIn and WhatsApp chats never reach the Unibox.
 import { admin, json, secret, serve } from "../_shared/core.ts";
+import { escapeHtml } from "../_shared/mail.ts";
+import { openmail } from "../_shared/openmail.ts";
 import { loadInvestor } from "../_shared/investor.ts";
 import { notifyFounder, tagOutcome, touchConversation } from "../_shared/unibox.ts";
 
@@ -38,6 +40,26 @@ const STATUS_MAP: Record<string, "ok" | "credentials" | "error" | "connecting" |
   DELETED: "disconnected",
 };
 
+async function emailReconnect(ownerId: string, provider: "linkedin" | "whatsapp", accountId: string) {
+  const { data: profile } = await admin.from("profiles").select("email, first_name").eq("id", ownerId).maybeSingle();
+  if (!profile?.email) return;
+  const app = (await secret("APP_URL").catch(() => "https://www.centralegtm.com")).replace(/\/$/, "");
+  const name = provider === "linkedin" ? "LinkedIn" : "WhatsApp";
+  await openmail(`/v1/inboxes/${await secret("OPENMAIL_SYSTEM_INBOX_ID")}/send`, {
+    idempotencyKey: `reconnect-${accountId}-${new Date().toISOString().slice(0, 10)}`,
+    body: {
+      to: profile.email,
+      subject: `Reconnect your ${name} to Centrale`,
+      body: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#391c25;max-width:520px">
+<p>Hi ${escapeHtml(profile.first_name ?? "there")},</p>
+<p>${name} signed your account out of Centrale, so messages to investors cannot go and replies will not reach your Inbox until you reconnect. It takes a minute.</p>
+<p><a href="${app}/dashboard/settings#channels" style="display:inline-block;background:#391c25;color:#f6f1e8;text-decoration:none;padding:10px 16px;border-radius:6px">Reconnect ${name}</a></p>
+<p style="font-size:12px;color:#9a8d88">This usually happens after a password change, signing out of other sessions, or a security check by ${name}.</p>
+</div>`,
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const expected = await secret("UNIPILE_WEBHOOK_SECRET");
@@ -67,10 +89,17 @@ serve(async (req) => {
     const s = body.AccountStatus as { account_id: string; message: string };
     const status = STATUS_MAP[String(s.message).toUpperCase()];
     if (!status) return json({ ok: true, ignored: s.message });
+    const { data: before } = await admin.from("channel_accounts").select("id, owner_id, provider, status").eq("unipile_account_id", s.account_id)
+      .neq("status", "disconnected").maybeSingle();
+    if (!before) return json({ ok: true, ignored: "unknown account" });
     await admin.from("channel_accounts").update({
       status,
       status_message: status === "credentials" ? "The account signed out or was restricted. Reconnect it in Settings." : null,
-    }).eq("unipile_account_id", s.account_id).neq("status", "disconnected");
+    }).eq("id", before.id);
+    // Tell the founder once, when a working account drops, so their LinkedIn or WhatsApp outreach does not stall unnoticed.
+    if ((status === "credentials" || status === "error") && before.status === "ok") {
+      await emailReconnect(before.owner_id, before.provider as "linkedin" | "whatsapp", body.AccountStatus.account_id).catch((err) => console.error("reconnect email failed", err));
+    }
     return json({ ok: true });
   }
 

@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-11-21";
+export const DOCS_UPDATED = "2026-11-22";
 
 export const DOCS: DocSection[] = [
   {
@@ -71,7 +71,11 @@ export const DOCS: DocSection[] = [
           Go to Billing, press <B>Manage subscription</B> and cancel there. You are not charged if you cancel before the trial ends.
         </Callout>
         <H3>What you get during the trial</H3>
-        <P>Everything the plan has, from the first day, so you have conversations going before your first payment.</P>
+        <P>
+          Everything the plan has, from the first day, so you have conversations going before your first payment. Home shows a checklist for the
+          week (email your first 10, connect LinkedIn or WhatsApp, make a call, get a reply), and on days 1, 3 and 6 we email you the steps you have
+          not done yet. Those three emails are the only ones, and day 6 reminds you when the trial ends.
+        </P>
         <Bullets
           items={[
             "Your startup profile, built from your website, and your first 10 investors matched at your round.",
@@ -779,6 +783,14 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-11-22",
+            items: [
+              "Home has a checklist for your first week, and the trial sends three short reminders on days 1, 3 and 6.",
+              "Pipeline cards show the latest outcome tag, replies on any channel, and a Bounced label when an email address failed.",
+              "If LinkedIn or WhatsApp signs your account out, we email you a link to reconnect.",
+            ],
+          },
           {
             date: "2026-11-21",
             items: [

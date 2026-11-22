@@ -11,6 +11,19 @@ export interface SpendTag {
 /** Firecrawl bills in credits; this is the per-credit price on the Standard plan, used for estimates only. */
 export const FIRECRAWL_USD_PER_CREDIT = 0.00083;
 
+/**
+ * Channel costs, list prices as of November 2026, for estimates only (the invoices are the truth).
+ * Telnyx: a US number is $1 to buy and $1 a month; a recorded browser call to a US number is about $0.015 a minute,
+ * transcription $0.005 a minute, answering-machine detection $0.0065 a call. Unipile: about €5 per connected
+ * account a month (after a €49 monthly minimum). Monthly items accrue daily in private.accrue_channel_costs().
+ */
+export const CHANNEL_COSTS = {
+  phone_number_setup_usd: 2, // $1 one-time + the first month
+  call_usd_per_minute: 0.015,
+  transcription_usd_per_minute: 0.005,
+  answering_machine_usd: 0.0065,
+};
+
 export async function recordSpend(tag: SpendTag, usage: Partial<Usage> & { firecrawl_credits?: number }) {
   const firecrawl = usage.firecrawl_credits ?? 0;
   const usd = (usage.usd ?? 0) + firecrawl * FIRECRAWL_USD_PER_CREDIT;

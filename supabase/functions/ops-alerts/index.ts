@@ -74,7 +74,12 @@ serve(async (req) => {
   const due: string[] = [];
   const sends = { sent: await sentToday(), cap: await accountDailyCap() };
   const { data: fnErrors } = await admin.rpc("function_error_counts");
-  for (const p of [...problems(snapshot, dbLimitMb, sends), ...functionProblems((fnErrors ?? []) as { fn: string; n: number; last: string }[])]) {
+  const { count: reconnect } = await admin.from("channel_accounts").select("id", { count: "exact", head: true }).in("status", ["credentials", "error"]);
+  const extra: { key: string; text: string }[] = [];
+  if ((reconnect ?? 0) >= 3) {
+    extra.push({ key: "channels_reconnect", text: `${reconnect} founders' LinkedIn or WhatsApp accounts need reconnecting. Each was emailed; a sudden rise can mean a Unipile problem.` });
+  }
+  for (const p of [...problems(snapshot, dbLimitMb, sends), ...extra, ...functionProblems((fnErrors ?? []) as { fn: string; n: number; last: string }[])]) {
     const { data: send } = await admin.rpc("ops_alert_due", { p_key: p.key });
     if (send) due.push(p.text);
   }

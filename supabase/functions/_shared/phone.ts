@@ -3,6 +3,7 @@
 // About $1 to buy and $1 a month; released when the founder's plan ends.
 import { admin, HttpError, secret } from "./core.ts";
 import { telnyx, TelnyxError } from "./telnyx.ts";
+import { CHANNEL_COSTS, recordSpend } from "./spend.ts";
 
 interface Available {
   phone_number: string;
@@ -49,6 +50,7 @@ export async function provisionNumber(ownerId: string, areaCode?: string | null)
       telnyx_credential_id: cred.data.id,
       sip_username: cred.data.sip_username,
     }).eq("id", row.id).select().single();
+    await recordSpend({ owner: ownerId, feature: "phone_number", ref: row.id }, { usd: CHANNEL_COSTS.phone_number_setup_usd });
     return done;
   } catch (err) {
     await admin.from("phone_numbers").update({ status: "failed", last_error: err instanceof Error ? err.message : String(err) }).eq("id", row.id);

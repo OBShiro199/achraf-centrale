@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 
+import type { Channel, Outcome } from "@/lib/unibox";
+
 export const STAGES = [
   { key: "to_contact", label: "To contact" },
   { key: "contacted", label: "Contacted" },
@@ -30,12 +32,33 @@ export interface PipelineCard {
   thread_id: string | null;
   updated_at: string | null;
   calendar_clicked_at: string | null;
+  /** Their address bounced, so email will not reach them; try another channel. */
+  bounced?: boolean;
+  /** Where things stand, from Claude or the founder, across every channel. */
+  outcome?: Outcome | null;
+  /** Their latest reply on any channel, and which channel it came on. */
+  reply_at?: string | null;
+  reply_channel?: Channel | null;
 }
 
 export async function loadBoard(): Promise<PipelineCard[]> {
-  const { data, error } = await createClient().rpc("pipeline_board");
-  if (error) throw error;
-  return (data ?? []) as PipelineCard[];
+  const supabase = createClient();
+  const [board, bounced, convos] = await Promise.all([
+    supabase.rpc("pipeline_board"),
+    supabase.from("outreach_messages").select("investor_id").eq("direction", "outbound").eq("status", "bounced").not("investor_id", "is", null),
+    supabase.from("conversations").select("investor_id, channel, last_direction, last_message_at, outcome").not("investor_id", "is", null).order("last_message_at", { ascending: false }),
+  ]);
+  if (board.error) throw board.error;
+  const bouncedIds = new Set((bounced.data ?? []).map((r) => Number(r.investor_id)));
+  const latest = new Map<number, { outcome: Outcome | null; reply_at: string | null; reply_channel: Channel | null }>();
+  for (const c of (convos.data ?? []) as { investor_id: number; channel: Channel; last_direction: string; last_message_at: string; outcome: Outcome | null }[]) {
+    const id = Number(c.investor_id);
+    const cur = latest.get(id) ?? { outcome: null, reply_at: null, reply_channel: null };
+    if (!cur.outcome && c.outcome) cur.outcome = c.outcome;
+    if (!cur.reply_at && c.last_direction === "inbound") Object.assign(cur, { reply_at: c.last_message_at, reply_channel: c.channel });
+    latest.set(id, cur);
+  }
+  return ((board.data ?? []) as PipelineCard[]).map((c) => ({ ...c, bounced: bouncedIds.has(c.investor_id), ...(latest.get(c.investor_id) ?? {}) }));
 }
 
 export type CardPatch = Partial<Pick<PipelineCard, "stage" | "note" | "next_step" | "next_step_on">>;

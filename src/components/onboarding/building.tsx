@@ -11,13 +11,15 @@ import { fetchMatching, type DirectoryRow } from "@/lib/directory";
 import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Inbox, Startup } from "@/lib/types";
 import { BrandMark } from "@/components/landing/logo";
+import { formatPhone } from "@/lib/utils";
+import { LaunchKit } from "@/components/app/channels";
 
 type TaskState = "pending" | "running" | "done" | "error" | "background";
-type TaskKey = "read" | "profile" | "inbox" | "investors" | "match" | "deck";
+type TaskKey = "read" | "profile" | "inbox" | "phone" | "investors" | "match" | "deck";
 
 const ease = [0.22, 0.61, 0.21, 1] as const;
 /** Nice-to-haves: if these fail the founder still gets to the dashboard. */
-const OPTIONAL: TaskKey[] = ["inbox", "investors", "deck"];
+const OPTIONAL: TaskKey[] = ["inbox", "phone", "investors", "deck"];
 /** How long to hold the finish for the deck once everything else is done; after that it carries on in the background. */
 const DECK_GRACE_MS = 6000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -101,6 +103,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
     read: "pending",
     profile: "pending",
     inbox: "pending",
+    phone: "pending",
     investors: "pending",
     match: "pending",
     deck: wantsDeck ? "pending" : "done",
@@ -108,6 +111,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
   const [error, setError] = useState<string | null>(null);
   const [startup, setStartup] = useState<Startup | null>(null);
   const [inbox, setInbox] = useState<Inbox | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const [matches, setMatches] = useState<DirectoryRow[] | null>(null);
   const started = useRef(false);
   const deckRun = useRef<Promise<void> | null>(null);
@@ -138,11 +142,17 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
 
       set("profile", "running");
       set("inbox", "running");
-      // Every founder gets an inbox during onboarding; sending from it starts with the plan.
-      const [profileRes, inboxRes] = await Promise.allSettled([
+      set("phone", "running");
+      // Every founder gets an inbox and a US number during onboarding, so they can email and call from day one.
+      const [profileRes, inboxRes, phoneRes] = await Promise.allSettled([
         callFunction<{ startup: Startup }>("build-profile"),
         callFunction<{ inbox: Inbox }>("provision-inbox"),
+        callFunction<{ number: { e164: string } }>("phone", { action: "provision" }),
       ]);
+      if (phoneRes.status === "fulfilled") {
+        setPhone(phoneRes.value.number.e164);
+        set("phone", "done");
+      } else set("phone", "error");
       if (profileRes.status === "fulfilled") {
         setStartup(profileRes.value.startup);
         set("profile", "done");
@@ -203,6 +213,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
     { key: "read", label: `Reading ${domain}` },
     { key: "profile", label: "Writing your startup profile" },
     { key: "inbox", label: "Setting up your inbox" },
+    { key: "phone", label: "Getting your US number" },
     { key: "investors", label: "Finding investors at your round" },
     { key: "match", label: "Picking your first 10" },
     ...(wantsDeck ? [{ key: "deck" as const, label: "Drafting your pitch deck" }] : []),
@@ -276,6 +287,10 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
                   )}
                 </div>
                 <div>
+                  <p className="text-[12px] text-label">Your US number</p>
+                  <p className="mt-0.5 truncate text-[13.5px] font-medium text-ink">{phone ? formatPhone(phone) : "Set it up in Settings"}</p>
+                </div>
+                <div>
                   <p className="text-[12px] text-label">Your investors</p>
                   <p className="mt-0.5 text-[13.5px] font-medium text-ink">
                     {matches?.length ? `${matches.length} matched` : "Ready on the Investors page"}
@@ -316,6 +331,7 @@ export function Building({ domain, needsScrape, wantsDeck = false }: { domain: s
                 )}
               </div>
             </div>
+            <LaunchKit className="mx-auto mt-5 w-full max-w-[460px] text-left" />
             <div className="mt-8 flex flex-col items-center gap-3">
               {matches?.length ? (
                 <>

@@ -5,27 +5,27 @@ import { SectionHead } from "./section-head";
 const steps = [
   {
     n: "01",
-    title: "Enter your domain",
-    body: "We read your homepage and pull out what you sell, who buys it and what you have shipped.",
-    time: "30 seconds",
-  },
-  {
-    n: "02",
-    title: "Answer five questions",
-    body: "Team size, values, stage, revenue, and your deck if you have one. We build the profile while you answer.",
+    title: "Tell us about your raise",
+    body: "Your website, your round and a few answers. Claude writes your startup profile while you type.",
     time: "2 minutes",
   },
   {
-    n: "03",
-    title: "Get matched",
-    body: "Your 10 best-fit investors at your round, ranked on sector, thesis and location, each with a reason.",
+    n: "02",
+    title: "Meet your first ten",
+    body: "Investors who back your exact round, one per firm, ranked by fit and each with a reason.",
     time: "instant",
   },
   {
+    n: "03",
+    title: "Reach them everywhere",
+    body: "Email from your own domain, LinkedIn and WhatsApp from your own accounts, calls from your US number. Claude drafts, you approve.",
+    time: "day one",
+  },
+  {
     n: "04",
-    title: "Send from your own inbox",
-    body: "Your sending inbox exists from signup. Claude drafts each first email, you read it, and it goes.",
-    time: "under 15 minutes",
+    title: "Work one inbox",
+    body: "Every reply and every recorded call lands in one place, tagged interested, meeting or not now. Your pipeline moves itself.",
+    time: "every day",
   },
 ];
 
@@ -36,8 +36,8 @@ export function HowItWorks() {
         <SectionHead
           num="2"
           label="How it works"
-          title="Four steps, shown working."
-          lead="The whole path from signup to the first investor email, timed."
+          title="Four steps from signup to your first meetings."
+          lead="Everything is switched on in the trial, so you have momentum before your first payment."
         />
         <div className="mt-14 grid border-t border-line md:grid-cols-2 lg:grid-cols-4">
           {steps.map((s, i) => (

@@ -117,7 +117,7 @@ export function ComposeModal({
                   "There is no email on file for this investor."
                 ) : locked ? (
                   <>
-                    Sending starts with your plan.{" "}
+                    Sending needs a trial or a plan.{" "}
                     <a href="/dashboard/billing" className="text-ink underline-offset-2 hover:underline">
                       Billing
                     </a>

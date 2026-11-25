@@ -31,6 +31,8 @@ export default function PrivacyPage() {
             ["Your answers in onboarding: round, revenue, team size, values", "To match investors at your round and in your sectors"],
             ["Your pitch deck, uploaded or generated, and your brand colours and logo", "To build and store your deck"],
             ["Emails you send and receive, notes and pipeline stages", "To send your outreach, show replies and track your raise"],
+            ["LinkedIn and WhatsApp messages in conversations Centrale started, and the status of the accounts you connect", "To send your messages and show replies in your Inbox. We never read your other chats"],
+            ["Your calls: numbers dialled, times, recordings, transcripts and summaries", "To show your call history, and so Claude can summarise each call and tag its outcome"],
             ["Your booking link, if you add one", "To include it in drafts and count clicks on it"],
             ["Usage and cost records, and a scrambled (hashed) copy of the network you signed up from", "To keep the service working, set limits and stop abuse"],
             ["Your plan and payment status from Whop", "To give you the right plan. Whop holds your card details; we never see them"],
@@ -47,7 +49,8 @@ export default function PrivacyPage() {
           Our directory lists people who invest in startups, such as partners, angels, principals and associates at venture firms, angel groups,
           accelerators and family offices. For each person it holds professional details: name, job title, firm, firm website and description, the
           stages and sectors the firm invests in, location, work email, and where available phone and LinkedIn profile. These come from business data
-          sources and public professional profiles.
+          sources and public professional profiles. If a founder calls you through Centrale, you hear a notice that the call may be recorded; the
+          recording, a transcript and a summary are kept in that founder&apos;s account.
         </P>
         <P>
           We use them so founders can find investors whose focus fits their startup and contact them about their raise. We rely on legitimate interest:
@@ -86,6 +89,9 @@ export default function PrivacyPage() {
             ["Anthropic (Claude)", "Writes profiles, email drafts, decks and AI search filters", "Your profile and the investor details a draft is about"],
             ["Firecrawl", "Reads your website during onboarding and for your deck", "Your website's public pages"],
             ["Whop", "Checkout, subscriptions and billing", "Your payment details and plan"],
+            ["Unipile", "Connects your LinkedIn and WhatsApp accounts and sends and receives messages", "Your connected accounts and the messages in Centrale conversations"],
+            ["Telnyx", "Phone numbers, calls, recordings and transcription", "Numbers dialled, call audio and transcripts"],
+            ["Porkbun", "Registers the sending domain we buy for you", "The domain and Centrale's registrant details"],
           ]}
         />
         <P>
@@ -98,7 +104,7 @@ export default function PrivacyPage() {
         <Table
           head={["Data", "Kept for"]}
           rows={[
-            ["Your account, profile, deck, emails and pipeline", "Until you delete your account in Settings"],
+            ["Your account, profile, deck, emails, messages, call recordings and pipeline", "Until you delete your account in Settings"],
             ["Usage cost records", "Kept after you delete your account, without anything that identifies you"],
             ["Hashed signup network records", "30 days"],
             ["Error records from our systems", "14 days"],

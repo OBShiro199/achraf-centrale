@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/field";
 import { Loader } from "@/components/ui/kit";
 import { callFunction, createClient } from "@/lib/supabase/client";
-import { usePlanPrice } from "@/lib/plan";
+import { PlanPicker } from "@/components/app/plan-picker";
+import type { PlanId } from "@/lib/plan";
 
 const TRIAL = [
-  "Your startup profile, written from your website",
-  "Your own inbox, on your own domain if you connect one",
-  "A researched pitch deck in your brand, as a PDF",
-  "Browse the investor database and see your best matches",
+  "Your startup profile and your first 10 investor matches",
+  "Your own inbox, emailing investors from day one, with follow-ups",
+  "LinkedIn, WhatsApp and a US number for calls, all replies in one inbox",
+  "Full contact details, exports and a researched pitch deck",
 ];
-const PAID = ["Email investors, with automatic follow-ups", "Reveal and export contact details"];
 
 /** Where a founder goes next once their trial has started. */
 async function nextPath() {
@@ -45,7 +45,7 @@ function Start() {
   const [waiting, setWaiting] = useState(returning);
   const [slow, setSlow] = useState(false);
   const polls = useRef(0);
-  const price = usePlanPrice();
+  const [plan, setPlan] = useState<PlanId>("quarterly");
 
   // Founders who already have a trial or plan never see this page.
   useEffect(() => {
@@ -74,7 +74,7 @@ function Start() {
     setBusy(true);
     setError(null);
     try {
-      const { url } = await callFunction<{ url: string }>("whop", { action: "checkout" });
+      const { url } = await callFunction<{ url: string }>("whop", { action: "checkout", plan });
       window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open checkout");
@@ -93,12 +93,12 @@ function Start() {
   return (
     <AuthShell
       title="Start your 7-day free trial"
-      lead={`Add a card to begin. Nothing is charged today; Centrale is ${price ?? "billed monthly"}${price ? " a month" : ""} after the trial, and you can cancel any time before it ends.`}
+      lead="Everything is included from today. Add a card to begin; nothing is charged for 7 days, and you can cancel any time before the trial ends."
       footer={<span className="text-[13px] text-label">Payments are handled by Whop.</span>}
     >
       <div className="space-y-5">
         <div>
-          <p className="text-[12.5px] font-medium text-ink">During the trial</p>
+          <p className="text-[12.5px] font-medium text-ink">Your trial includes</p>
           <ul className="mt-2 space-y-1.5">
             {TRIAL.map((l) => (
               <li key={l} className="flex gap-2 text-[13.5px] text-body">
@@ -109,15 +109,8 @@ function Start() {
           </ul>
         </div>
         <div>
-          <p className="text-[12.5px] font-medium text-ink">When your plan starts</p>
-          <ul className="mt-2 space-y-1.5">
-            {PAID.map((l) => (
-              <li key={l} className="flex gap-2 text-[13.5px] text-muted">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-label" strokeWidth={2.4} />
-                {l}
-              </li>
-            ))}
-          </ul>
+          <p className="mb-2 text-[12.5px] font-medium text-ink">After the trial</p>
+          <PlanPicker value={plan} onChange={setPlan} />
         </div>
         {returning && !waiting && (
           <FormError>We have not heard back from Whop yet. If you finished checkout, refresh in a minute; otherwise start again below.</FormError>

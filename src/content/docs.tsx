@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-10-26";
+export const DOCS_UPDATED = "2026-11-22";
 
 export const DOCS: DocSection[] = [
   {
@@ -43,7 +43,7 @@ export const DOCS: DocSection[] = [
         />
         <Figures
           items={[
-            { value: "7 days", label: "Free trial, card up front" },
+            { value: "4", label: "Channels: email, LinkedIn, WhatsApp, phone" },
             { value: "0 to 100", label: "Fit score for every investor" },
             { value: "10", label: "Investors matched at onboarding" },
             { value: "20", label: "New emails a day per inbox" },
@@ -60,8 +60,9 @@ export const DOCS: DocSection[] = [
     body: (
       <>
         <P>
-          You create an account with your email, then start a 7-day free trial through Whop checkout. Whop asks for a card up front. Nothing is
-          charged today. After day 7 the plan is billed monthly. The current price is shown on the <A href="/dashboard/billing">Billing</A> page.
+          You create an account with your email, choose a plan and start a 7-day free trial through Whop checkout. Whop asks for a card up front.
+          Nothing is charged today. After day 7 you pay <B>$129 a month</B> or <B>$249 every three months</B>, whichever you chose. There is no yearly
+          plan.
         </P>
         <P>
           Sign up with a work or personal address. Temporary inbox services cannot open an account, and one network can open at most 3 accounts a day.
@@ -70,32 +71,23 @@ export const DOCS: DocSection[] = [
           Go to Billing, press <B>Manage subscription</B> and cancel there. You are not charged if you cancel before the trial ends.
         </Callout>
         <H3>What you get during the trial</H3>
+        <P>
+          Everything the plan has, from the first day, so you have conversations going before your first payment. Home shows a checklist for the
+          week (email your first 10, connect LinkedIn or WhatsApp, make a call, get a reply), and on days 1, 3 and 6 we email you the steps you have
+          not done yet. Those three emails are the only ones, and day 6 reminds you when the trial ends.
+        </P>
         <Bullets
           items={[
-            "Your startup profile, built from your website.",
-            <>Your own sending inbox, created during onboarding on an <Code>@omail.sh</Code> address.</>,
-            <>The <A href="/dashboard/docs#custom-domain">custom domain</A> setup, so your address is ready when sending starts.</>,
-            "Your pitch deck, with up to 3 deck generations.",
-            <>
-              The investor database with contact details truncated, for example <Code>j•••@firm.com</Code> and <Code>+1 201-•••-••••</Code>.
-            </>,
-            "Up to 500 investor rows, which is about 10 pages.",
-            "Your first 10 investors, matched at your round during onboarding.",
-            "Claude drafts of first emails, so you can read them before your plan starts.",
-          ]}
-        />
-        <H3>What starts when your plan starts</H3>
-        <Bullets
-          items={[
-            "Sending emails from your inbox.",
-            "Automatic follow-ups.",
-            "Revealing full contact details, 2,500 a month.",
-            "Exports, 2,500 export credits a month.",
-            "The full investor database with no row limit.",
+            "Your startup profile, built from your website, and your first 10 investors matched at your round.",
+            <>A sending domain for your company, bought and set up for you (see <A href="/dashboard/docs#custom-domain">Custom domain</A>), and your inbox.</>,
+            <>A US phone number for calls from the browser (see <A href="/dashboard/docs#calls">Calls</A>).</>,
+            <>LinkedIn and WhatsApp from your own accounts (see <A href="/dashboard/docs#channels">LinkedIn and WhatsApp</A>).</>,
+            "Full contact details: 100 contact reveals and 100 export credits during the trial, then the plan's full allowance.",
+            "Your pitch deck, sending, automatic follow-ups and the whole investor database.",
           ]}
         />
         <P>
-          Emails you queue during the trial wait in the Outbox and send once your plan starts. See <A href="/dashboard/docs#plans-and-limits">Plans and
+          See <A href="/dashboard/docs#plans-and-limits">Plans and
           limits</A> for every number side by side.
         </P>
       </>
@@ -119,8 +111,9 @@ export const DOCS: DocSection[] = [
             { title: "You answer a few questions", body: "Team size, any values you stand for, the round you are raising, the investors you want to hear from, your monthly revenue, and an optional pitch deck upload." },
             { title: "Claude writes your profile", body: "A one-liner, a summary, your mission, what this raise is for, your sectors and the keywords investors will match on." },
             { title: "You review the answers", body: "Read it through and edit anything that is wrong. You can change all of it later on the Startup profile page." },
-            { title: "We set up your inbox", body: <>Your sending inbox is created on an <Code>@omail.sh</Code> address. You can move it to your own domain later.</> },
+            { title: "We set up your inbox and number", body: <>Your sending inbox is created on an <Code>@omail.sh</Code> address, and your US phone number is bought for you.</> },
             { title: "We match investors and can draft your deck", body: "Centrale matches you with 10 investors at your round, and if you asked for one, starts on your pitch deck." },
+            { title: "You switch on your channels", body: "Pick a sending domain and we buy it, then connect LinkedIn and WhatsApp if you like. All three can wait for Settings." },
           ]}
         />
         <Callout title="If you upload a deck">
@@ -341,7 +334,15 @@ export const DOCS: DocSection[] = [
       <>
         <P>
           Each founder gets one sending inbox, provided by OpenMail and created during onboarding. Investors see its address and your name on every email.
-          Sending starts when your plan starts.
+          Sending works from the first day of your trial.
+        </P>
+        <H3>One inbox for every channel</H3>
+        <P>
+          <A href="/dashboard/inbox">Inbox</A> holds every conversation with an investor, whichever way it happened: email threads, LinkedIn and
+          WhatsApp chats, and calls. Filter by channel, by outcome or to unread only. When an investor answers, Claude reads the reply (or the call
+          transcript) and tags where it stands: <B>Interested</B>, <B>Meeting</B>, <B>Call back</B>, <B>Not now</B> or <B>Not interested</B>, with a
+          one-line reason. Interested and meeting move the investor forward on your <A href="/dashboard/docs#pipeline">Pipeline</A>. Change any tag
+          from the menu at the top of the conversation; Claude never overrides your choice.
         </P>
         <H3>How the Outbox works</H3>
         <Steps
@@ -391,13 +392,82 @@ export const DOCS: DocSection[] = [
           Outbox shows these as cancelled. Replies in a conversation carry no unsubscribe line.
         </P>
         <P>
+          A bounce is caught when the delivery report comes back, usually within minutes: the email shows as bounced and the address joins the
+          do-not-email list. Before sending, Centrale also checks that the address&apos;s domain still takes email; if the firm&apos;s domain has
+          gone, the email is cancelled instead of bouncing. Out-of-office replies do not count as a reply, so your follow-up still goes out.
+        </P>
+        <P>
           Investors can also leave the directory entirely at <A href="/remove">centralegtm.com/remove</A>. They confirm from a link sent to their
           address, and are then hidden from search, their profile and contact details stop showing even if you saved them, and they join the
           do-not-email list.
         </P>
-        <Callout tone="warning" title="Test mode">
-          While Centrale is in testing, every email goes to a single test address instead of the investor. Each one carries a note at the top naming the
-          real recipient, so testing can never reach a real investor.
+        <Callout tone="warning" title="Emails go to real investors">
+          Every email you send or queue goes to the investor&apos;s real address, in your name. Read each draft before it goes.
+        </Callout>
+      </>
+    ),
+  },
+
+  {
+    id: "channels",
+    title: "LinkedIn and WhatsApp",
+    summary: "Message investors from your own LinkedIn and WhatsApp, with replies in your Inbox.",
+    body: (
+      <>
+        <P>
+          Connect your accounts in <A href="/dashboard/settings#channels">Settings, Channels</A>. LinkedIn opens a secure sign-in page; WhatsApp shows a
+          QR code to scan from your phone, as with WhatsApp Web. Messages go from your own accounts, so investors see you, not a tool. Centrale only
+          keeps conversations it started or that are with investors in the directory; your personal chats never reach Centrale.
+        </P>
+        <Steps
+          items={[
+            { title: "Open an investor", body: "On their profile press Message, then pick LinkedIn or WhatsApp. Claude drafts a short note from your profile." },
+            { title: "Read and send", body: "Edit the draft, then send. On LinkedIn it goes as a message if you are connected, otherwise as an invite with your note." },
+            { title: "Replies land in Inbox", body: "We email you when they answer, tag the outcome and stop any email follow-up still waiting to go to them." },
+          ]}
+        />
+        <Table
+          head={["Daily limit", "Value", "Why"]}
+          rows={[
+            ["LinkedIn invites", "20", "LinkedIn restricts accounts that send many invites that go unanswered"],
+            ["LinkedIn messages", "50", "To your connections"],
+            ["New WhatsApp chats", "15", "WhatsApp restricts accounts that start many chats nobody answers"],
+            ["WhatsApp messages", "60", "Across all your chats"],
+          ]}
+          caption="Limits count from midnight UTC."
+        />
+        <Callout tone="warning" title="Your accounts, your risk">
+          LinkedIn invite notes hold 300 characters (free LinkedIn accounts get a few notes a month). New WhatsApp numbers should wait a day after
+          connecting before messaging, and an account that LinkedIn or WhatsApp signs out shows Reconnect in Settings. Write to investors who fit,
+          and keep messages personal.
+        </Callout>
+      </>
+    ),
+  },
+
+  {
+    id: "calls",
+    title: "Calls",
+    summary: "Your US number, calling from the browser, recordings, transcripts and outcome tags.",
+    body: (
+      <>
+        <P>
+          Every founder gets a US phone number during onboarding. Press <B>Call</B> on an investor&apos;s profile or in a conversation and the call
+          runs in your browser: allow the microphone the first time. The investor sees your US number, and hears a short notice that the call may be
+          recorded before you are connected.
+        </P>
+        <Bullets
+          items={[
+            "When the call ends you can tag how it went and add notes. Your tag moves the investor on your pipeline.",
+            "A minute later the recording, a transcript and Claude's summary appear in Inbox under Calls. Claude also tags the outcome, including voicemail and no answer, unless you already did.",
+            "Only you can play your recordings. Recording links expire after five minutes.",
+            "Calling an investor (or messaging them on WhatsApp) shows their number, so it uses one contact reveal, once per investor.",
+            "Up to 60 calls in 24 hours. Carriers label numbers that dial much more as spam.",
+          ]}
+        />
+        <Callout tone="tip" title="Calling well">
+          Call within working hours where the investor is, say who you are and why you are calling in the first sentence, and stop calling anyone
+          who asks you to.
         </Callout>
       </>
     ),
@@ -449,6 +519,15 @@ export const DOCS: DocSection[] = [
           <Code>amira@mail.yourcompany.com</Code>. Investors trust a real company domain more, and it matches the website they will visit. Set it up from{" "}
           <A href="/dashboard/domain">Custom domain</A> in the sidebar.
         </P>
+        <H3>A domain bought for you</H3>
+        <P>
+          At the end of onboarding, Centrale suggests a few short names for your company, such as <Code>getacme.com</Code> or{" "}
+          <Code>acmehq.com</Code>, and buys the one you pick for its first year at no cost to you. We publish its email records for you, and once it
+          verifies (usually within the hour) your inbox moves onto it with your first name as the mailbox, for example{" "}
+          <Code>amira@getacme.com</Code>. We only buy .com, .co, .io and .org names: cheaper endings are on spam filters&apos; watch lists. A new
+          domain starts at 20 new emails a day and builds up over a few weeks.
+        </P>
+        <H3>Or connect a domain you own</H3>
         <Callout tone="tip" title="Use a subdomain">
           We recommend a subdomain such as <Code>mail.yourcompany.com</Code>. Your existing company email on <Code>yourcompany.com</Code> stays exactly as
           it is. A separate domain you own works too.
@@ -569,19 +648,20 @@ export const DOCS: DocSection[] = [
     body: (
       <>
         <Table
-          head={["", "Trial", "Plan"]}
+          head={["", "Monthly, $129", "Quarterly, $249"]}
           rows={[
-            ["Sending inbox", <>Yes, on <Code>@omail.sh</Code>; custom domain setup allowed</>, "Yes"],
-            ["Sending and follow-ups", "No", "Yes, 20 new emails a day per inbox while it warms up"],
-            ["Investor rows", "500", "Unlimited"],
-            ["Rows per page", "Up to 50", "Up to 100"],
-            ["Contact reveals", "0", "2,500 a month"],
-            ["Export credits", "0", "2,500 a month"],
-            ["Deck generations", "3", "20 per 30 days"],
-            ["Investor rows viewed a day", "1,500", "50,000"],
-            ["Searches a minute", "40", "120"],
+            ["Billed", "Every month", "Every 3 months, about $83 a month"],
+            ["Free trial", "7 days, everything included", "7 days, everything included"],
+            ["Sending domain and inbox", "Yes, 20 new emails a day per inbox while it warms up", "Same"],
+            ["LinkedIn and WhatsApp", "Your own accounts, within the daily limits", "Same"],
+            ["US number and recorded calls", "Yes, up to 60 calls a day", "Same"],
+            ["Investor rows", "Unlimited", "Unlimited"],
+            ["Contact reveals", "2,500 a month", "7,500 a quarter"],
+            ["Export credits", "2,500 a month", "7,500 a quarter"],
+            ["During the 7-day trial", "100 reveals and 100 export credits", "Same"],
+            ["Deck generations", "20 per 30 days", "20 per 30 days"],
           ]}
-          caption="The plan price is shown on the Billing page."
+          caption="Both plans include the same features; quarterly costs less per month. Allowances reset at the start of each billing period. There is no yearly plan."
         />
         <P>
           Reveals and export credits reset at the start of each billing period. The daily view count resets at midnight UTC. Deck generations count over
@@ -604,12 +684,12 @@ export const DOCS: DocSection[] = [
         <Table
           head={["Situation", "What happens"]}
           rows={[
-            ["Trial", "The Billing page shows the days left and the date your plan starts."],
+            ["Trial", "The Billing page shows the days left and the date your plan starts. Everything is included during the trial."],
             ["Payment fails", "Your plan shows as payment overdue and Billing asks you to update your card. Sending carries on while Whop retries the payment. If it still fails, the plan ends and sending stops; your queue stays in the Outbox."],
             ["You cancel", "You keep the plan until the end of the period you paid for."],
             [
               "Plan ends",
-              "Sending, follow-ups, reveals and exports stop. Your profile, deck and emails stay in your account. Start the plan again from Billing whenever you like.",
+              "Sending, follow-ups, reveals and exports stop. Your US number is released and LinkedIn and WhatsApp are disconnected. Your profile, deck, conversations and call history stay in your account. Start a plan again from Billing whenever you like.",
             ],
           ]}
         />
@@ -654,12 +734,8 @@ export const DOCS: DocSection[] = [
             a: "On the log in page press Forgot your password?, enter your login email and open the link we send in the same browser. It works once, for an hour. Choose a new password and you are signed in.",
           },
           {
-            q: "Why do my emails go to a test address?",
-            a: "Centrale is in testing, so every email goes to one test inbox with a note naming the investor it was for. No real investor receives anything until live sending is switched on.",
-          },
-          {
-            q: "Why can I not send during the trial?",
-            a: "Sending starts when your plan starts, after the 7-day trial. You can read Claude's drafts and queue emails now; they wait in the Outbox until then.",
+            q: "Can I send during the trial?",
+            a: "Yes. Sending and follow-ups work from the first day of your trial, within the same daily limits as the plan.",
           },
           {
             q: "How long does domain verification take?",
@@ -709,6 +785,34 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-11-22",
+            items: [
+              "Home has a checklist for your first week, and the trial sends three short reminders on days 1, 3 and 6.",
+              "Pipeline cards show the latest outcome tag, replies on any channel, and a Bounced label when an email address failed.",
+              "If LinkedIn or WhatsApp signs your account out, we email you a link to reconnect.",
+            ],
+          },
+          {
+            date: "2026-11-21",
+            items: [
+              "LinkedIn and WhatsApp: connect your own accounts and message investors from their profile.",
+              "Calls: a US number for every founder, calling from the browser, with recordings, transcripts and summaries.",
+              "Inbox now holds every channel, and Claude tags each conversation interested, meeting, call back, not now or not interested.",
+              "A sending domain bought and set up for you at signup.",
+              "New pricing: $129 a month or $249 every three months, after a 7-day trial with everything included.",
+            ],
+          },
+          {
+            date: "2026-11-04",
+            items: [
+              "Live sending is on: emails now go to the investors you write to.",
+              "Sending and follow-ups work during the trial.",
+              "Bounces are caught as soon as the delivery report arrives, and the address is never emailed again.",
+              "Emails to firms whose email domain no longer exists are cancelled before they can bounce.",
+              "Out-of-office replies no longer count as a reply, so your follow-up still goes out.",
+            ],
+          },
           {
             date: "2026-10-26",
             items: [

@@ -9,6 +9,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Drawer, Empty, Pill, Settle, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/toast";
 import { loadBoard, removeFromPipeline, saveCard, STAGES, stageLabel, type PipelineCard, type Stage } from "@/lib/pipeline";
+import { CHANNEL_LABEL, OUTCOME_LABEL, OUTCOME_TONE } from "@/lib/unibox";
 import { cn, timeAgo } from "@/lib/utils";
 
 function due(on: string | null) {
@@ -20,9 +21,12 @@ function due(on: string | null) {
 
 function Card({ card, onOpen }: { card: PipelineCard; onOpen: () => void }) {
   const d = due(card.next_step_on);
-  const activity = card.last_reply_at
-    ? `Replied ${timeAgo(card.last_reply_at)}`
-    : card.calendar_clicked_at
+  const replyAt = card.reply_at ?? card.last_reply_at;
+  const activity = replyAt
+    ? `Replied${card.reply_channel && card.reply_channel !== "email" ? ` on ${CHANNEL_LABEL[card.reply_channel]}` : ""} ${timeAgo(replyAt)}`
+    : card.bounced
+      ? "Email bounced, try LinkedIn or a call"
+      : card.calendar_clicked_at
       ? `Opened your booking link ${timeAgo(card.calendar_clicked_at)}`
       : card.last_sent_at
         ? `Emailed ${timeAgo(card.last_sent_at)}`
@@ -87,6 +91,8 @@ function Editor({ card, onSaved, onClose }: { card: PipelineCard; onSaved: () =>
           {card.last_sent_at && <Pill>Emailed {timeAgo(card.last_sent_at)}</Pill>}
           {card.last_reply_at && <Pill tone="green">Replied {timeAgo(card.last_reply_at)}</Pill>}
           {card.calendar_clicked_at && <Pill tone="amber">Opened booking link {timeAgo(card.calendar_clicked_at)}</Pill>}
+          {card.bounced && <Pill tone="red">Email bounced</Pill>}
+          {card.outcome && <Pill tone={OUTCOME_TONE[card.outcome]}>{OUTCOME_LABEL[card.outcome]}</Pill>}
         </div>
       </div>
       <Field label="Stage" hint="Emails and replies move investors forward on their own. Passed stays where you put it.">

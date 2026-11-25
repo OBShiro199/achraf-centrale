@@ -1,5 +1,6 @@
 // Investors come from public.investors_achraf (the directory). Ids are bigint row ids.
 import { admin, HttpError } from "./core.ts";
+import { toE164 } from "./phone-format.ts";
 
 export interface Investor {
   id: number;
@@ -59,4 +60,26 @@ export async function loadInvestor(id: number): Promise<Investor> {
 export async function findInvestorByEmail(email: string): Promise<Investor | null> {
   const { data } = await admin.from("investors_achraf").select(COLUMNS).ilike("email", email).limit(1).maybeSingle();
   return data ? shape(data) : null;
+}
+
+export interface InvestorContact {
+  id: number;
+  full_name: string;
+  firm: string;
+  /** Best number for calls and WhatsApp in E.164 (+14155550123), mobile first; null when none is usable. */
+  phone: string | null;
+  linkedin_url: string | null;
+}
+
+export async function loadInvestorContact(id: number): Promise<InvestorContact> {
+  const { data, error } = await admin.from("investors_achraf").select("id, full_name, firm, phone, mobile, linkedin_url, country").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new HttpError(404, "This investor is no longer in the directory");
+  return {
+    id: Number(data.id),
+    full_name: data.full_name?.trim() || "this investor",
+    firm: data.firm?.trim() || "their firm",
+    phone: toE164(data.mobile, data.country) ?? toE164(data.phone, data.country),
+    linkedin_url: data.linkedin_url?.trim() || null,
+  };
 }

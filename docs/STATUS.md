@@ -3,12 +3,12 @@
 What is live, what is built but not shipped, what is waiting on someone, and what was left out on purpose.
 Keep this in step with the PRD (claude.ai/code/artifact/aca85a1b-767a-48ff-a275-aaa8ac14f6cc) and update it with every PR.
 
-Last updated: 2026-10-26
+Last updated: 2026-11-21
 
 ## Live on www.centralegtm.com
 
 - Signup, onboarding (website scrape, profile, brand, inbox, Claude picks), pitch deck, investor directory (133,773 investors, all with an email; 31 filters, AI search, saved searches), drafts, Outbox, follow-ups, inbox and replies, custom domains.
-- Test mode: every outreach email goes to oliverburt3@gmail.com (`OUTREACH_LIVE` off).
+- Live sending since 4 November (`OUTREACH_LIVE` = true in Vault). Set it to anything else to send every email to `OUTREACH_TEST_RECIPIENT` again; test-mode emails are stored with status `test` and never get a follow-up.
 - Email the top 10, 25 or 50 of a search.
 - CI on every push: types, lint and build for the app; type check and tests for edge functions.
 
@@ -23,12 +23,43 @@ All 12 migrations (20261014100000 to 20261017120000) applied to `tldvqiqucfmlnkg
 
 How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the account that owns Centrale. Apply migrations with `supabase db query --linked --project-ref tldvqiqucfmlnkgxaufy -f <file>` (wrapped in a transaction, plus a row in `supabase_migrations.schema_migrations`) and deploy with `supabase functions deploy <name> --project-ref tldvqiqucfmlnkgxaufy`, adding `--no-verify-jwt` for track-open, signup, openmail-webhook, generate-deck, process-outbox, stripe-webhook, whop-webhook, unsubscribe, investor-removal, meeting-link and ops-alerts. Merge stacked PRs one at a time without deleting a base branch that another PR still points at.
 
+## Built 2026-11-21 (phase 2: every channel), not yet switched on
+
+Code is on branch `feat/phase-2`. Switching it on is in `docs/HANDOVER.md` section 6.
+
+- **Pricing:** two plans, $129 a month or $249 every 3 months; no yearly plan. The trial gets everything the plan has (`paid` is true during a running trial). Plan picker on /start, Billing and the landing page.
+- **LinkedIn and WhatsApp (Unipile):**
+  - founders connect their own accounts (`channels` function, Settings > Channels, end of onboarding);
+  - Claude drafts a short note, which goes as a LinkedIn message or invite, or a WhatsApp message;
+  - replies come in through `unipile-webhook`;
+  - daily limits are 20 invites, 50 LinkedIn messages, 15 new WhatsApp chats and 60 WhatsApp messages.
+- **Calls (Telnyx):**
+  - each founder gets a US number during onboarding (`phone` function);
+  - calling runs in the browser through a floating dialer; the server connects the investor from the founder's number;
+  - the investor hears a recording notice; recording, transcript (Deepgram via Telnyx), summary and outcome tag follow;
+  - limit of 60 calls a day.
+- **Unibox:** Inbox lists every channel from the new `conversations` table, with live updates. Email history is backfilled. Claude tags each reply or call, positive tags move the pipeline, and founders can override any tag.
+- **Sending domain:** at the end of onboarding Centrale suggests names (.com, .co, .io or .org only, under $13) and buys one through Porkbun. It then publishes the OpenMail records and moves the inbox onto the domain once it verifies.
+- **Landing page:** copy rewritten, and stale claims removed ($49 price, "send from your own Gmail", "already warm domains").
+- **Unchanged:** email stays on OpenMail. AgentMail's terms forbid cold outreach.
+- **Also updated:** the cancel and delete-account flows release the number and unlink accounts; terms, privacy and docs are updated; `docs/HANDOVER.md` and `scripts/setup-integrations.mjs` are new.
+
+## Built 2026-11-04 (email sending readiness)
+
+- Bounces: OpenMail reports them as inbound mail with category `bounce`, not as an event. The webhook now marks the sent email `bounced`, suppresses the address for every founder and cancels anything queued to it. Delays (4.x.x) are ignored. Before this, a bounce in a thread counted as an investor reply, cancelled the follow-up and emailed the founder.
+- Out-of-office, marketing and spam mail no longer count as replies.
+- OpenMail suspending an inbox pauses it here (as before) and now emails staff with the reason.
+- Hourly health check alerts above 3% bounces over 7 days (at 50+ sends), and on any inbox above 5% (at 20+ sends).
+- Before every send, a free DNS check (Cloudflare DNS over HTTPS) cancels emails to domains that no longer exist or take no email, and suppresses the address.
+- The trial sends and follows up like the paid plan (decided 4 Nov). Every email sent before 5 November is marked `test` so it never gets a follow-up. Terms, docs and composer copy updated.
+- Migration `20261104100000_email_sending_readiness` and the functions openmail-webhook, ops-alerts, send-email and process-outbox need deploying (see How to ship).
+
 ## Partly done
 
 - **Investor directory size.** On 9 or 10 October (around the database lock fix) the 201,313 investors without an email were deleted from `investors_achraf`, leaving 133,773. On 14 October the search tables were brought in line and the filter counts refreshed. To bring LinkedIn-only investors back, reload them from the source file with `npm run import-investors` after the Supabase upgrade. The filter accuracy suite needs a sample under 1,000 now that every row has an email: `select * from private.test_lead_filters(900);` (32 of 32 pass).
 - **Health check alerts.** Covers sends, decks, cron jobs, spend, database size, the send cap, and edge function failures (any webhook failure, or 3 failures an hour elsewhere). Does not notice a webhook that stops arriving at all.
 - **Investor removal.** Hides the investor everywhere and suppresses the address. The source row in `investors_achraf` is kept; full erasure on request is a manual staff step. A future directory rebuild must skip `private.investor_removals`.
-- **Compliance footer.** Unsubscribe link is in. The postal address only appears once `COMPANY_POSTAL_ADDRESS` is set in Vault.
+- **Compliance footer.** Unsubscribe link is in. Decided 4 Nov not to add a postal address; it appears only if `COMPANY_POSTAL_ADDRESS` is ever set in Vault.
 - **Search speed.** Default view is narrowed to the founder's profile so it loads, but wide searches stay slow until the database upgrade, then the 4 dropped search indexes need rebuilding and the keep-warm job turning back on.
 - **Booking link.** Drafts offer it and clicks are counted, but a booked meeting does not move the investor to Meeting. That needs Calendly or Cal.com webhooks, which means a provider account per founder or an OAuth app.
 - **Outreach analytics.** Rates by sector, stage, region and role. Not by email version yet, since drafts are not tagged with a version or template.
@@ -36,18 +67,24 @@ How to ship from now on: the Supabase CLI on Oliver's Mac is logged in to the ac
 - **Admin console.** Actions cover plan, inbox pause and manual address blocks. A manual plan change is overwritten by Whop's next webhook for that founder. No refunds, impersonation or deck re-runs.
 - **End-to-end tests.** Public pages run on every PR. The founder flow only runs once `E2E_EMAIL` and `E2E_PASSWORD` repository secrets exist for one fixed tester account that has finished onboarding (see `e2e/README.md`). Onboarding and deck generation are not covered, since both spend money.
 - **Investor import.** `npm run import-investors -- file.csv` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set. Adds new investors only; it does not update existing rows. New specialties are not added to keyword search until a full keyword rebuild (`select private.refresh_lead_keywords();` then every range, as in `20261009101000_lead_search_load_and_indexes.sql`).
+- **Address quality.** The DNS check catches dead domains only, not dead mailboxes at live domains. Decided 4 Nov not to pay for a verification service; bounce handling and the bounce-rate alerts are the safety net.
+- **Bounces in the app.** Bounced emails are marked in the database and the address is blocked, but the pipeline and investor drawer do not show a "Bounced" label yet.
 - **Daily send cap.** Defaults to 150 (OpenMail Pro, first 30 days). Raise `OPENMAIL_ACCOUNT_DAILY_CAP` in Vault to 500 once the account is past 30 days.
 
 ## Needs Achraf
+- [ ] Create the Unipile account (about €49 a month for the first 10 connected accounts), and the Porkbun account with credit.
+- [ ] Telnyx: Level 2 verification, so the account can buy US numbers.
+- [ ] Whop: create the $129 monthly and $249 quarterly plans, each with a 7-day trial.
+- [ ] Domain cap: $5 only buys TLDs on spam watch lists (.xyz, .online, .site), so the code caps at $13 for .com. Confirm the $13 cap.
+- [ ] OpenMail terms (s.11) allow cold email only with a postal address, an opt-out, at most 2 follow-ups and no purchased lists. Revisit the decision not to add an address.
 
 - [ ] Upgrade Supabase to Pro plus Small compute (about $40 a month). Database is over the free limit and has gone read-only once.
-- [ ] Confirm the $149 price, set it in Whop and the `plans` table. Annual plan or not.
+- [ ] Confirm the $149 price, set it in Whop and the `plans` table. Annual plan or not. (4 Nov: parked for now.)
 - [ ] Confirm the rights to use and resell each investor data source; name who answers removal requests.
-- [ ] Legal review of live cold sending (UK PECR, GDPR, CAN-SPAM), then pick the date to turn on `OUTREACH_LIVE`.
+- [ ] (4 Nov: parked; live sending was turned on 4 Nov without it.) Legal review of live cold sending (UK PECR, GDPR, CAN-SPAM).
 - [ ] Lawyer review of the drafted /terms and /privacy pages (live, marked as awaiting legal review), plus a data processing agreement for founders. No cookie banner is needed while the site only uses sign-in cookies.
-- [ ] Company postal address for the email footer (`COMPANY_POSTAL_ADDRESS`).
 - [ ] Who handles support and where founders reach us (then Claude builds the help form to that address).
-- [ ] OpenMail Enterprise: ask now or at about 20 active founders.
+- [ ] OpenMail capacity: decided 4 Nov to stay on Pro with one inbox per account (already how provisioning works). At 150 a day across the account (500 after 30 days), Centrale serves about 7 founders sending 20 a day; Pro includes 10 inboxes, then about €1 each.
 - [ ] Choose the first 5 to 10 founders for the controlled launch.
 - [ ] Decide which comes first: LinkedIn outreach or email finding.
 

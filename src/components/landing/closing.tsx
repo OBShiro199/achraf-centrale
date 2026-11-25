@@ -26,13 +26,13 @@ export function Closing() {
           </Reveal>
           <Reveal delay={0.16}>
             <p className="mt-5 max-w-[460px] text-[17px] leading-relaxed text-muted">
-              {TAGLINE} Sign up, answer five questions and send your first investor email in fifteen minutes.
+              {TAGLINE} Seven days with everything included, then $129 a month or $249 for the quarter.
             </p>
           </Reveal>
           <Reveal delay={0.24} className="relative mt-10 inline-flex flex-wrap gap-3 p-4">
             <ScribbleBox className="pointer-events-none absolute inset-0 h-full w-full" delay={0.6} />
             <ButtonLink href="/signup" variant="primary" size="lg" square>
-              Start your raise
+              Start your 7-day trial
             </ButtonLink>
             <ButtonLink href="/login" variant="secondary" size="lg" square>
               Log in

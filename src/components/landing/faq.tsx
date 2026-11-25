@@ -7,28 +7,28 @@ import { SectionHead } from "./section-head";
 
 const faqs = [
   {
-    q: "How can emails go out in minutes if new inboxes need warming up?",
-    a: "Every founder gets a sending inbox at signup on domains that are already warm, so the first emails leave straight away. Daily volume ramps up over the first month, and you can connect your own domain later.",
+    q: "What is included in the trial?",
+    a: "Everything. Your investor matches, a sending domain we buy for you, your inbox, a US phone number, LinkedIn and WhatsApp from your own accounts, full contact details, exports and a researched pitch deck. A card is needed to start, and nothing is charged if you cancel within 7 days.",
+  },
+  {
+    q: "Which plan should I pick?",
+    a: "$129 a month, or $249 every three months. Most raises take three to six months, so the quarterly plan covers a raise for about $83 a month. Cancel either from Billing at any time.",
+  },
+  {
+    q: "Will my emails land in spam?",
+    a: "We set you up on your own company domain with the authentication mailbox providers check for, start each new inbox at 20 new emails a day and ramp from there. Bounced addresses are blocked straight away, so one bad address never hurts the next email.",
+  },
+  {
+    q: "Is it safe to message from my LinkedIn and WhatsApp?",
+    a: "Messages go from your own accounts, with daily limits well inside what LinkedIn and WhatsApp tolerate: 20 LinkedIn invites and 15 new WhatsApp chats a day. Nothing sends without you reading it first.",
+  },
+  {
+    q: "Are calls recorded?",
+    a: "Yes. The investor hears a short notice that the call may be recorded. Each call is transcribed and summarised, and Claude tags the outcome so you can see who to follow up. Only you can listen to your recordings.",
   },
   {
     q: "Where does the investor data come from?",
-    a: "A maintained list of active investors with stage, sector, cheque size, geography and portfolio. Each investor is matched against your profile, not a keyword search.",
-  },
-  {
-    q: "What if I do not have a pitch deck?",
-    a: "Tell us during onboarding. We draft one from your website and your answers, and you edit it before anyone sees it. If you do have one, upload it as PDF, PPTX, PPT, KEY or DOCX.",
-  },
-  {
-    q: "Do I write the emails myself?",
-    a: "Claude drafts each first email from your profile and that investor's thesis and portfolio. You read, edit and approve every one before it sends.",
-  },
-  {
-    q: "Can I send from my own Gmail?",
-    a: "Yes, for your first week you can route through your own address while the dedicated inboxes build their sending history.",
-  },
-  {
-    q: "How do I know when an investor replies?",
-    a: "Replies land in your Centrale inbox with the investor attached, and we send you an email the moment one arrives.",
+    a: "A directory of about 134,000 active investors, partners and angels with their stage, sectors, location and a work email, plus a phone number or LinkedIn profile where we have one. Investors can remove themselves at any time.",
   },
 ];
 

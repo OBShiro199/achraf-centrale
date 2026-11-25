@@ -1,9 +1,10 @@
 // Sends a founder's email to an investor from the founder's OpenMail inbox.
 import { admin, HttpError, json, readJson, requireUser, serve } from "../_shared/core.ts";
 import { openmail, OpenMailError, type OMSendResult } from "../_shared/openmail.ts";
-import { isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
-import { hasPaidPlan } from "../_shared/inbox.ts";
+import { domainAcceptsMail, isSuppressed, optOutFooter, resolveRecipient, suppress, toTrackedHtml, withTestNote } from "../_shared/mail.ts";
+import { sendingAllowance } from "../_shared/inbox.ts";
 import { investorId, loadInvestor } from "../_shared/investor.ts";
+import { touchConversation } from "../_shared/unibox.ts";
 import { dailyLimitReached, INBOX_DAILY_CAP } from "../_shared/limits.ts";
 
 serve(async (req) => {
@@ -16,7 +17,8 @@ serve(async (req) => {
   }>(req);
   if (!subject?.trim() || !body?.trim()) throw new HttpError(400, "Add a subject and a message");
   const id = investorId(investor_id);
-  if (!(await hasPaidPlan(user.id))) throw new HttpError(402, "Sending starts when your plan starts, after the 7-day trial.");
+  const allowance = await sendingAllowance(user.id);
+  if (!allowance.can_send) throw new HttpError(402, "Sending needs a trial or a plan. Start one from Billing.");
 
   const [{ data: inbox }, investor, { data: startup }] = await Promise.all([
     admin.from("inboxes").select("*").eq("owner_id", user.id).eq("status", "active").maybeSingle(),
@@ -31,6 +33,10 @@ serve(async (req) => {
 
   if (await isSuppressed(investor.email)) {
     throw new HttpError(409, `${investor.full_name} has asked not to be emailed, or their address bounced.`);
+  }
+  if (investor.email && !(await domainAcceptsMail(investor.email))) {
+    await suppress(investor.email, "bounce", { investor_id: investor.id });
+    throw new HttpError(409, `${investor.full_name}'s email domain no longer takes email, so this would bounce. Try someone else at the firm.`);
   }
 
   const outreachId = crypto.randomUUID();
@@ -68,13 +74,18 @@ serve(async (req) => {
         to_addr: to,
         subject: subject.trim(),
         body: body.trim(),
-        status: result.status,
+        status: test ? "test" : result.status,
       },
       { onConflict: "openmail_message_id", ignoreDuplicates: true },
     )
     .select()
     .maybeSingle();
   if (error) throw error;
+
+  await touchConversation({
+    owner_id: user.id, channel: "email", external_id: result.threadId, investor_id: investor.id, title: subject.trim(),
+    contact_name: investor.full_name, contact_handle: investor.email, preview: body, direction: "outbound",
+  }).catch((err) => console.error("unibox mirror failed", err));
 
   // Sending counts as saving: contacted investors stay on the founder's list.
   await admin.from("saved_investors").upsert({ owner_id: user.id, investor_id: investor.id }, { ignoreDuplicates: true });

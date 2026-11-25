@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminActions } from "@/components/app/admin-actions";
 import { Card, CardHeader, Empty, Pill, Settle, Skeleton } from "@/components/ui/kit";
 import { createClient } from "@/lib/supabase/client";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatPhone, timeAgo } from "@/lib/utils";
 
 interface Overview {
   founders: { total: number; new_7d: number; by_plan: { plan: string; status: string; n: number }[] };
@@ -71,6 +71,72 @@ function SendChart({ days }: { days: Overview["sending"]["by_day"] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+interface Channels {
+  totals: Record<"linkedin" | "whatsapp" | "needs_reconnect" | "numbers" | "calls_7d" | "answered_7d" | "messages_7d" | "domains_pending", number> & { channel_cost_30d: number };
+  founders: { email: string; linkedin: string | null; whatsapp: string | null; number: string | null; calls_7d: number; bought_domain: string | null }[];
+}
+
+const accountLabel = (s: string | null) => (!s ? "" : s === "ok" ? "Connected" : s === "connecting" ? "Syncing" : "Reconnect");
+const accountBad = (s: string | null) => Boolean(s && s !== "ok" && s !== "connecting");
+
+/** LinkedIn, WhatsApp, numbers, calls and bought domains across founders. */
+function ChannelsPanel() {
+  const [data, setData] = useState<Channels | null>(null);
+  useEffect(() => {
+    void createClient()
+      .rpc("admin_channels")
+      .then(({ data: d }) => setData((d as Channels | null) ?? null));
+  }, []);
+  if (!data) return null;
+  const t = data.totals;
+  return (
+    <Card>
+      <CardHeader
+        title="Channels"
+        sub="LinkedIn and WhatsApp accounts, US numbers, calls and bought domains."
+        action={t.needs_reconnect ? <Pill tone="red">{t.needs_reconnect} to reconnect</Pill> : undefined}
+      />
+      <div className="grid gap-4 p-5 sm:grid-cols-4">
+        <Stat label="LinkedIn connected" value={fmt(t.linkedin)} />
+        <Stat label="WhatsApp connected" value={fmt(t.whatsapp)} />
+        <Stat label="US numbers" value={fmt(t.numbers)} />
+        <Stat label="Calls, 7 days" value={fmt(t.calls_7d)} sub={`${fmt(t.answered_7d)} answered`} />
+        <Stat label="Messages sent, 7 days" value={fmt(t.messages_7d)} sub="LinkedIn and WhatsApp" />
+        <Stat label="Domains verifying" value={fmt(t.domains_pending)} tone={t.domains_pending ? "amber" : undefined} />
+        <Stat label="Channel cost, 30 days" value={`$${t.channel_cost_30d}`} sub="Numbers, minutes, accounts, domains" />
+      </div>
+      {data.founders.length > 0 && (
+        <div className="quiet-scroll overflow-x-auto border-t border-line-2">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead>
+              <tr className="text-left text-[12px] text-label">
+                <th className="px-5 py-2 font-normal">Founder</th>
+                <th className="px-3 py-2 font-normal">LinkedIn</th>
+                <th className="px-3 py-2 font-normal">WhatsApp</th>
+                <th className="px-3 py-2 font-normal">Number</th>
+                <th className="px-3 py-2 font-normal">Calls, 7 days</th>
+                <th className="px-5 py-2 font-normal">Bought domain</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.founders.map((f) => (
+                <tr key={f.email} className="border-t border-line-2">
+                  <td className="px-5 py-2 text-ink">{f.email}</td>
+                  <td className={cn("px-3 py-2", accountBad(f.linkedin) && "text-pencil")}>{accountLabel(f.linkedin)}</td>
+                  <td className={cn("px-3 py-2", accountBad(f.whatsapp) && "text-pencil")}>{accountLabel(f.whatsapp)}</td>
+                  <td className="tabular px-3 py-2">{formatPhone(f.number)}</td>
+                  <td className="tabular px-3 py-2">{f.calls_7d}</td>
+                  <td className="px-5 py-2">{f.bought_domain ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -191,6 +257,10 @@ export default function AdminPage() {
             <Stat label="Removal links pending" value={fmt(data.deliverability.removal_requests_pending)} />
           </div>
         </Card>
+      </Settle>
+
+      <Settle delay={130}>
+        <ChannelsPanel />
       </Settle>
 
       <Settle delay={140}>

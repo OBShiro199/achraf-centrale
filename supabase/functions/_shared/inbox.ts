@@ -150,7 +150,14 @@ export async function moveInboxToDomain(ownerId: string, domain: string, mailbox
   return row;
 }
 
-/** Sending, follow-ups, reveals and exports come with a paid plan, not the trial. */
+/** Whether this founder can send now: on a paid plan or in a running trial. */
+export async function sendingAllowance(ownerId: string) {
+  const { data, error } = await admin.rpc("sending_allowance", { p_uid: ownerId });
+  if (error) throw error;
+  return data as { can_send: boolean; paid: boolean };
+}
+
+/** Reveals and exports come with a paid plan, not the trial. */
 export async function hasPaidPlan(ownerId: string) {
   const { data } = await admin.from("subscriptions").select("status").eq("owner_id", ownerId).maybeSingle();
   return data?.status === "active" || data?.status === "past_due";

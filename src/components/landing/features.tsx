@@ -215,7 +215,7 @@ function NumbersPanel() {
 const panels = [
   { title: "A profile written from your site", pitch: "We read your homepage and Claude writes the summary investors see.", Panel: ProfilePanel },
   { title: "Investors you can filter", pitch: "Stage, sector, cheque size, geography and values, each with a fit score.", Panel: InvestorsPanel },
-  { title: "An inbox that exists at signup", pitch: "Sending starts in minutes. Replies land in one place and you get an email.", Panel: InboxPanel },
+  { title: "One inbox for every channel", pitch: "Email, LinkedIn, WhatsApp and recorded calls, each tagged by where it stands.", Panel: InboxPanel },
   { title: "The numbers that matter", pitch: "Emails sent, open rate from pixel tracking, and who replied.", Panel: NumbersPanel },
 ];
 

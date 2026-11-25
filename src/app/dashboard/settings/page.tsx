@@ -13,6 +13,7 @@ import { callFunction, createClient } from "@/lib/supabase/client";
 import type { Profile, Startup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SetupInboxButton } from "@/components/app/setup-inbox";
+import { ChannelsCard } from "@/components/app/channels";
 
 const FOLLOW_UP_DAYS = [2, 3, 4, 5, 7, 10, 14];
 
@@ -211,6 +212,10 @@ export default function SettingsPage() {
         </Card>
       </Settle>
 
+      <Settle delay={150}>
+        <ChannelsCard />
+      </Settle>
+
       <Settle delay={180}>
         <FollowUps />
       </Settle>
@@ -313,6 +318,15 @@ const FEATURES: Record<string, string> = {
   match_shortlist: "Match shortlist (retired)",
   email_draft: "Email drafts",
   follow_up_draft: "Follow-up drafts",
+  linkedin_draft: "LinkedIn drafts",
+  whatsapp_draft: "WhatsApp drafts",
+  reply_outcome: "Reply tagging",
+  call_outcome: "Call summaries and tags",
+  call_minutes: "Calls (Telnyx minutes, transcription)",
+  phone_number: "US numbers bought (Telnyx)",
+  phone_number_daily: "US numbers, monthly (Telnyx)",
+  linked_account: "LinkedIn and WhatsApp accounts (Unipile)",
+  domain_purchase: "Domains bought (Porkbun)",
 };
 
 interface Spend {
@@ -321,7 +335,7 @@ interface Spend {
   decks: { count: number; avg_usd: number; max_usd: number };
 }
 
-/** Staff only: what Claude and Firecrawl cost across all founders over the last 30 days. Founders get nothing back. */
+/** Staff only: what Claude, Firecrawl and the outreach channels cost across all founders over the last 30 days. Founders get nothing back. */
 function RunningCosts() {
   const [spend, setSpend] = useState<Spend | null>(null);
   useEffect(() => {

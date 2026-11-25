@@ -404,8 +404,9 @@ export interface Entitlements {
   /** pending = account made, no card yet; trialing = 7 days with a card on file; active = paid. */
   status: "pending" | "trialing" | "active" | "past_due" | "canceled" | "expired";
   active: boolean;
-  /** A paid plan: sending, reveals and exports. */
+  /** A paid plan: reveals and exports. */
   paid: boolean;
+  /** True on a paid plan or in a running trial. */
   can_send: boolean;
   manage_url: string | null;
   trial_ends_at: string | null;

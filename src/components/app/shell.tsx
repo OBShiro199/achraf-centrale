@@ -7,9 +7,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, Building2, Check, Columns3, Copy, CreditCard, FileText, Globe, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/landing/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
+import { DialerProvider } from "./dialer";
+import { CHANNEL_LABEL, type Conversation } from "@/lib/unibox";
 import { brandConfetti } from "@/components/ui/kit";
-import { callFunction, createClient } from "@/lib/supabase/client";
-import type { OutreachMessage, ThreadSummary } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
 import { cn, initials } from "@/lib/utils";
 import { useApp } from "./context";
 import { SetupInboxButton } from "./setup-inbox";
@@ -196,21 +197,24 @@ function InboxChip() {
   );
 }
 
-/** Listens for investor replies: confetti, a toast and a fresh unread count. */
+/** Listens for investor replies on any channel: confetti, a toast and a fresh unread count. */
 function ReplyWatcher() {
   const { profile, setUnread } = useApp();
   const toast = useToast();
 
   useEffect(() => {
+    const supabase = createClient();
     const refresh = () =>
-      callFunction<{ threads: ThreadSummary[] }>("inbox", { action: "threads" })
-        .then((r) => setUnread(r.threads.filter((t) => !t.isRead).length))
-        .catch(() => {});
+      supabase
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("unread", true)
+        .then(({ count }) => setUnread(count ?? 0));
     void refresh();
 
-    const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
+    const seen = new Map<string, string>();
 
     // Realtime applies RLS with the socket's token, so attach the session before joining.
     void supabase.auth.getSession().then(({ data }) => {
@@ -222,28 +226,22 @@ function ReplyWatcher() {
     const subscribe = () =>
       supabase
         .channel(`replies:${profile.id}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "outreach_messages",
-            filter: `owner_id=eq.${profile.id}`,
-          },
-          async (payload) => {
-            const m = payload.new as OutreachMessage;
-            if (m.direction !== "inbound") return;
-            void refresh();
-            window.dispatchEvent(new CustomEvent("centrale:reply"));
-            let who = m.from_addr ?? "Someone";
-            if (m.investor_id) {
-              const { data } = await supabase.from("investors_achraf").select("full_name,firm").eq("id", m.investor_id).single();
-              if (data) who = `${data.full_name} from ${data.firm}`;
-              void brandConfetti();
-            }
-            toast({ title: `${who} replied`, body: m.subject ?? undefined });
-          },
-        )
+        .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `owner_id=eq.${profile.id}` }, async (payload) => {
+          void refresh();
+          // Only a new inbound message counts as a reply: tag changes and read marks also update the row.
+          const c = payload.new as Conversation;
+          const fresh = c?.id && c.last_direction === "inbound" && c.unread && Date.now() - Date.parse(c.last_message_at) < 120_000;
+          if (!fresh || seen.get(c.id) === c.last_message_at) return;
+          seen.set(c.id, c.last_message_at);
+          window.dispatchEvent(new CustomEvent("centrale:reply"));
+          let who = c.contact_name ?? "Someone";
+          if (c.investor_id) {
+            const { data } = await supabase.from("investors_achraf").select("full_name,firm").eq("id", c.investor_id).maybeSingle();
+            if (data) who = `${data.full_name} from ${data.firm}`;
+            void brandConfetti();
+          }
+          toast({ title: `${who} replied${c.channel === "email" ? "" : ` on ${CHANNEL_LABEL[c.channel]}`}`, body: c.last_preview ?? undefined });
+        })
         .subscribe();
     return () => {
       cancelled = true;
@@ -261,46 +259,48 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ToastProvider>
-      <ReplyWatcher />
-      <div className="flex min-h-dvh">
-        <aside className="sticky top-0 hidden h-dvh w-[244px] shrink-0 border-r border-line bg-[#f1eadf]/60 lg:block">
-          <Sidebar />
-        </aside>
+      <DialerProvider>
+        <ReplyWatcher />
+        <div className="flex min-h-dvh">
+          <aside className="sticky top-0 hidden h-dvh w-[244px] shrink-0 border-r border-line bg-[#f1eadf]/60 lg:block">
+            <Sidebar />
+          </aside>
 
-        <AnimatePresence>
-          {menu && (
-            <motion.div className="fixed inset-0 z-40 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="absolute inset-0 bg-[#2c141c]/20" onClick={() => setMenu(false)} />
-              <motion.aside
-                initial={{ x: -30 }}
-                animate={{ x: 0 }}
-                exit={{ x: -30 }}
-                className="absolute inset-y-0 left-0 w-[260px] border-r border-line bg-paper"
+          <AnimatePresence>
+            {menu && (
+              <motion.div className="fixed inset-0 z-40 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <div className="absolute inset-0 bg-[#2c141c]/20" onClick={() => setMenu(false)} />
+                <motion.aside
+                  initial={{ x: -30 }}
+                  animate={{ x: 0 }}
+                  exit={{ x: -30 }}
+                  className="absolute inset-y-0 left-0 w-[260px] border-r border-line bg-paper"
+                >
+                  <Sidebar onNavigate={() => setMenu(false)} />
+                </motion.aside>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex min-w-0 flex-1 flex-col bg-[#fbf8f3]">
+            <header className="sticky top-0 z-30 flex h-[56px] items-center gap-3 border-b border-line bg-[#fbf8f3]/90 px-4 backdrop-blur md:px-6">
+              <button
+                className="-ml-1 rounded-[6px] p-1.5 text-muted hover:bg-black/[0.04] lg:hidden"
+                onClick={() => setMenu(true)}
+                aria-label="Open menu"
               >
-                <Sidebar onNavigate={() => setMenu(false)} />
-              </motion.aside>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex min-w-0 flex-1 flex-col bg-[#fbf8f3]">
-          <header className="sticky top-0 z-30 flex h-[56px] items-center gap-3 border-b border-line bg-[#fbf8f3]/90 px-4 backdrop-blur md:px-6">
-            <button
-              className="-ml-1 rounded-[6px] p-1.5 text-muted hover:bg-black/[0.04] lg:hidden"
-              onClick={() => setMenu(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <BrandMark className="h-4 w-4 lg:hidden" />
-            <h1 className="font-sans text-[15px] font-semibold tracking-[-0.015em]">{title}</h1>
-            <div className="ml-auto min-w-0">
-              <InboxChip />
-            </div>
-          </header>
-          <main className="min-w-0 flex-1">{children}</main>
+                <Menu className="h-5 w-5" />
+              </button>
+              <BrandMark className="h-4 w-4 lg:hidden" />
+              <h1 className="font-sans text-[15px] font-semibold tracking-[-0.015em]">{title}</h1>
+              <div className="ml-auto min-w-0">
+                <InboxChip />
+              </div>
+            </header>
+            <main className="min-w-0 flex-1">{children}</main>
+          </div>
         </div>
-      </div>
+      </DialerProvider>
     </ToastProvider>
   );
 }

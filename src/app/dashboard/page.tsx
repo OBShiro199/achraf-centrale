@@ -10,12 +10,13 @@ import { Avatar, Card, CardHeader, Empty, Pill, Settle, Skeleton } from "@/compo
 import { ScribbleTick, ScribbleUnderline } from "@/components/sketch/draw";
 import { RoughStrokes, type Stroke } from "@/components/sketch/rough";
 import { BrandMark } from "@/components/landing/logo";
-import { callFunction } from "@/lib/supabase/client";
+import { callFunction, createClient } from "@/lib/supabase/client";
+import { useChannels } from "@/components/app/channels";
 import { useStats, useTopMatches } from "@/lib/data";
 import { reasonLabel, type DirectoryRow } from "@/lib/directory";
 import { label, STAGES } from "@/lib/taxonomy";
 import type { ThreadSummary } from "@/lib/types";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatPhone, timeAgo } from "@/lib/utils";
 
 function plural(n: number, one: string, tail: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many} ${tail}`;
@@ -82,7 +83,12 @@ function ActivityChart({ days }: { days: { d: Date; sent: number; replies: numbe
 }
 
 export default function HomePage() {
-  const { profile, startup, signedUpAt, inbox, initialStats, ent } = useApp();
+  const { profile, startup, signedUpAt, initialStats, ent } = useApp();
+  const channels = useChannels();
+  const [callCount, setCallCount] = useState<number | null>(null);
+  useEffect(() => {
+    void createClient().from("calls").select("id", { count: "exact", head: true }).then(({ count }) => setCallCount(count ?? 0));
+  }, []);
   const { stats: liveStats, messages, reload } = useStats();
   const stats = liveStats ?? initialStats;
   const { rows: top, reload: reloadInvestors } = useTopMatches(5);
@@ -122,16 +128,28 @@ export default function HomePage() {
   const loading = !stats;
   const matched = (top ?? []).filter((r) => r.pick_rank != null).length;
 
+  const linked = (p: "linkedin" | "whatsapp") => channels.account(p)?.status === "ok";
   const steps = [
     { done: startup.analysis_status === "done", label: "Profile written", note: "From your website", href: "/dashboard/profile" },
-    {
-      done: Boolean(inbox),
-      label: "Inbox ready",
-      note: inbox ? (ent && !ent.can_send ? "Sending starts with your plan" : "Sending live") : "Needs setting up",
-      href: inbox ? "/dashboard/domain" : "/dashboard/settings",
-    },
     { done: matched > 0, label: "Investors matched", note: matched ? "At your round, best fit first" : "From your round and sectors", href: "/dashboard/investors?picks=1" },
-    { done: (stats?.investors_contacted ?? 0) > 0, label: "Send first email", note: "Drafted by Claude", href: "/dashboard/investors?picks=1" },
+    {
+      done: (stats?.investors_contacted ?? 0) >= 10,
+      label: "Email your first 10",
+      note: stats?.investors_contacted ? `${Math.min(stats.investors_contacted, 10)} of 10 so far` : "Drafted by Claude, press Email the top",
+      href: "/dashboard/investors?picks=1",
+    },
+    {
+      done: linked("linkedin") || linked("whatsapp"),
+      label: "Connect LinkedIn or WhatsApp",
+      note: linked("linkedin") ? "LinkedIn connected" : linked("whatsapp") ? "WhatsApp connected" : "Reach investors where they answer",
+      href: "/dashboard/settings#channels",
+    },
+    {
+      done: (callCount ?? 0) > 0,
+      label: "Make your first call",
+      note: channels.phone?.number?.status === "active" ? `From ${formatPhone(channels.phone.number.e164)}` : "From your US number",
+      href: "/dashboard/investors?picks=1",
+    },
     { done: (stats?.investors_replied ?? 0) > 0, label: "Get first reply", note: "We email you", href: "/dashboard/inbox" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -141,21 +159,23 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
-      {ent && !ent.paid && (
+      {ent && (ent.status === "trialing" || !ent.paid) && (
         <Settle className="mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#ecdcbf] bg-amber-soft/60 px-5 py-4">
             <div className="max-w-[640px]">
               <p className="text-[14.5px] font-medium text-ink">
                 {ent.status === "trialing"
                   ? `You're on your free trial${ent.trial_days_left != null ? `, ${ent.trial_days_left} day${ent.trial_days_left === 1 ? "" : "s"} left` : ""}.`
-                  : "Your trial has ended."}
+                  : ent.status === "pending"
+                    ? "Start your free trial to begin."
+                    : "Your trial has ended."}
               </p>
               <p className="mt-0.5 text-[13px] text-muted">
                 {ent.status === "trialing"
-                  ? inbox
-                    ? `Your inbox ${inbox.address} is ready, and you can connect your own domain now. Sending, contact reveals and exports start when your plan starts.`
-                    : "Your inbox is being set up. Sending, contact reveals and exports start when your plan starts. Until then, build your profile and deck, connect your domain and browse your matches."
-                  : "Start your plan to get your sending inbox and email investors. Your profile and deck are saved."}
+                  ? `Everything is included. Get conversations going before it ends: email your first 10, connect LinkedIn or WhatsApp and make a call. ${doneCount} of ${steps.length} steps done.`
+                  : ent.status === "pending"
+                    ? "Seven days with everything included. Add a card on the Billing page; nothing is charged until the trial ends."
+                    : "Start a plan to keep emailing, messaging and calling investors. Your profile, deck and conversations are saved."}
               </p>
             </div>
             <ButtonLink href="/dashboard/billing" size="sm" variant="primary">

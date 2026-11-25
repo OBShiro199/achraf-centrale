@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Globe, MessageCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, Pill, Skeleton } from "@/components/ui/kit";
@@ -48,6 +49,9 @@ export function useChannels() {
   }, []);
   useEffect(() => {
     void load();
+    const onChange = () => void load();
+    window.addEventListener("centrale:channels", onChange);
+    return () => window.removeEventListener("centrale:channels", onChange);
   }, [load]);
   const account = (p: Provider) => channels?.accounts.find((a) => a.provider === p) ?? null;
   return { channels, phone, account, reload: load };
@@ -288,10 +292,70 @@ export function LaunchKit({ className }: { className?: string }) {
       </div>
       {channels?.configured && (
         <div className="mt-3 divide-y divide-line-2 border-t border-line">
-          <ConnectRow provider="linkedin" account={account("linkedin")} configured onChange={reload} compact returnTo="/onboarding" />
-          <ConnectRow provider="whatsapp" account={account("whatsapp")} configured onChange={reload} compact returnTo="/onboarding" />
+          <ConnectRow provider="linkedin" account={account("linkedin")} configured onChange={reload} compact returnTo="/dashboard" />
+          <ConnectRow provider="whatsapp" account={account("whatsapp")} configured onChange={reload} compact returnTo="/dashboard" />
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Unipile's connect page sends the founder back with ?channel=linkedin&account_id=… (or &error_type=… when it failed). Shows what happened, and waits
+ * for Unipile's webhook to link the account (usually a few seconds) so the page they land on is already up to date.
+ * Mounted once in the dashboard shell, so it works wherever they return.
+ */
+export function ChannelReturnWatcher() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const path = usePathname();
+  const toast = useToast();
+  const handled = useRef(false);
+  const provider = params.get("channel");
+  // Unipile adds account_id on success and error_type when the founder could not connect.
+  const connected = params.get("account_id") ? "1" : params.get("error_type") ? "0" : params.get("connected");
+
+  useEffect(() => {
+    if (handled.current || (provider !== "linkedin" && provider !== "whatsapp") || connected == null) return;
+    handled.current = true;
+    const label = PROVIDER[provider].label;
+    const clean = () => {
+      const rest = new URLSearchParams(params.toString());
+      for (const k of ["channel", "connected", "account_id", "provider", "state", "error_type", "error_title", "error_detail"]) rest.delete(k);
+      router.replace(`${path}${rest.size ? `?${rest}` : ""}${window.location.hash}`, { scroll: false });
+    };
+    if (connected !== "1") {
+      toast({ title: `${label} was not connected`, body: params.get("error_detail") ?? "Nothing changed. Try again from Settings, Channels.", tone: "error" });
+      clean();
+      return;
+    }
+    toast({ title: `Connecting ${label}`, body: "This takes a few seconds." });
+    let tries = 0;
+    let stop = false;
+    const check = async () => {
+      if (stop) return;
+      tries += 1;
+      const status = await callFunction<ChannelsStatus>("channels", { action: "status" }).catch(() => null);
+      const acct = status?.accounts.find((a) => a.provider === provider);
+      if (acct && acct.status !== "connecting") {
+        toast(acct.status === "ok"
+          ? { title: `${label} connected`, body: "Message investors from their profile. Replies land in your Inbox." }
+          : { title: `${label} needs another try`, body: acct.status_message ?? "Reconnect it from Settings, Channels.", tone: "error" });
+        window.dispatchEvent(new CustomEvent("centrale:channels"));
+        clean();
+        return;
+      }
+      if (tries < 15) setTimeout(() => void check(), 3000);
+      else {
+        toast({ title: `${label} is still linking`, body: "It will show as connected in Settings in a minute." });
+        clean();
+      }
+    };
+    void check();
+    return () => {
+      stop = true;
+    };
+  }, [provider, connected, params, path, router, toast]);
+
+  return null;
 }

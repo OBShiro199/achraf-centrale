@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, Building2, Check, Columns3, Copy, CreditCard, FileText, Globe, House, Inbox as InboxIcon, LogOut, Menu, Send, Settings, Users } from "lucide-react";
 import { BrandMark, Wordmark } from "@/components/landing/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { DialerProvider } from "./dialer";
+import { ChannelReturnWatcher } from "./channels";
 import { CHANNEL_LABEL, type Conversation } from "@/lib/unibox";
 import { brandConfetti } from "@/components/ui/kit";
 import { createClient } from "@/lib/supabase/client";
@@ -261,6 +262,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <ToastProvider>
       <DialerProvider>
         <ReplyWatcher />
+      <Suspense fallback={null}>
+        <ChannelReturnWatcher />
+      </Suspense>
         <div className="flex min-h-dvh">
           <aside className="sticky top-0 hidden h-dvh w-[244px] shrink-0 border-r border-line bg-[#f1eadf]/60 lg:block">
             <Sidebar />

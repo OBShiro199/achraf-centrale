@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// One-time setup for LinkedIn and WhatsApp (Unipile) and calling (Telnyx). Safe to run again: it reuses what
+// One-time setup for LinkedIn and WhatsApp (Unipile API v2) and calling (Telnyx). Safe to run again: it reuses what
 // already exists. Prints the values to store in Supabase Vault (Dashboard > Project settings > Vault).
 //
-//   UNIPILE_DSN=api12.unipile.com:14215 UNIPILE_API_KEY=... UNIPILE_WEBHOOK_SECRET=<any long random string> \
-//   TELNYX_API_KEY=KEY... \
-//     node scripts/setup-integrations.mjs
+//   UNIPILE_API_KEY=... TELNYX_API_KEY=KEY... node scripts/setup-integrations.mjs
+//
+// UNIPILE_API_KEY must be a Service Key of the Unipile application (only those can manage webhooks). The webhook
+// endpoint's signing secret is printed once: store it as UNIPILE_WEBHOOK_SECRET.
 //
 // Either half can be skipped by leaving its keys unset. Keep keys out of the repo and shell history files
 // (prefix the command with a space, or export them from a password manager).
@@ -12,33 +13,34 @@ const FUNCTIONS = "https://tldvqiqucfmlnkgxaufy.supabase.co/functions/v1";
 const out = {};
 
 async function unipileSetup() {
-  const { UNIPILE_DSN: dsn, UNIPILE_API_KEY: key, UNIPILE_WEBHOOK_SECRET: secret } = process.env;
-  if (!dsn || !key) return console.log("Unipile: skipped (set UNIPILE_DSN and UNIPILE_API_KEY)");
-  if (!secret || secret.length < 24) throw new Error("Set UNIPILE_WEBHOOK_SECRET to a random string of 24+ characters");
-  const base = `https://${dsn.replace(/^https?:\/\//, "")}`;
+  const { UNIPILE_API_KEY: key } = process.env;
+  if (!key) return console.log("Unipile: skipped (set UNIPILE_API_KEY, an application Service Key)");
   const api = async (path, init = {}) => {
-    const res = await fetch(`${base}${path}`, { ...init, headers: { "X-API-KEY": key, "Content-Type": "application/json", accept: "application/json" } });
+    const res = await fetch(`https://api.unipile.com${path}`, { ...init, headers: { "X-API-KEY": key, "Content-Type": "application/json", accept: "application/json" } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(`Unipile ${path} ${res.status}: ${JSON.stringify(body)}`);
     return body;
   };
   const url = `${FUNCTIONS}/unipile-webhook`;
-  const existing = (await api("/api/v1/webhooks")).items ?? [];
-  const headers = [{ key: "Content-Type", value: "application/json" }, { key: "Unipile-Auth", value: secret }];
-  const wanted = [
-    { name: "centrale-messages", source: "messaging", events: ["message_received"] },
-    { name: "centrale-accounts", source: "account_status" },
-    { name: "centrale-relations", source: "users", events: ["new_relation"] },
-  ];
-  for (const w of wanted) {
-    if (existing.some((e) => e.name === w.name || (e.request_url === url && e.source === w.source))) {
-      console.log(`Unipile: webhook ${w.name} already exists`);
-      continue;
-    }
-    await api("/api/v1/webhooks", { method: "POST", body: JSON.stringify({ ...w, request_url: url, format: "json", headers }) });
-    console.log(`Unipile: created webhook ${w.name}`);
+  const existing = (await api("/v2/webhooks/endpoints/").catch(() => ({ items: [] }))).items ?? [];
+  if (existing.some((e) => e.url === url)) {
+    console.log("Unipile: webhook endpoint already exists. Its signing secret is shown in the Unipile dashboard, Webhooks.");
+    return;
   }
-  Object.assign(out, { UNIPILE_DSN: dsn, UNIPILE_API_KEY: "(the key you used)", UNIPILE_WEBHOOK_SECRET: "(the secret you used)" });
+  const created = await api("/v2/webhooks/endpoints/", {
+    method: "POST",
+    body: JSON.stringify({
+      url,
+      description: "Centrale",
+      trigger_events: [
+        "account.add", "account.reconnect", "account.remove",
+        "account.status.running", "account.status.disconnected", "account.status.errored",
+        "relation.new", "message.new",
+      ],
+    }),
+  });
+  console.log("Unipile: created the webhook endpoint");
+  Object.assign(out, { UNIPILE_WEBHOOK_SECRET: created.secret });
 }
 
 async function telnyxSetup() {

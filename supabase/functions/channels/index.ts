@@ -10,12 +10,12 @@
 //   reply       { conversation_id, text }    answer in an existing LinkedIn or WhatsApp conversation
 //   messages    { conversation_id }          the conversation's messages, oldest first
 //   tag         { conversation_id, outcome } the founder's own outcome for any conversation (email included); moves the pipeline
-import { admin, HttpError, json, readJson, requireUser, secret, serve, SUPABASE_URL } from "../_shared/core.ts";
+import { admin, HttpError, json, readJson, requireUser, secret, serve } from "../_shared/core.ts";
 import { HOUSE_STYLE, structured, tidy } from "../_shared/claude.ts";
 import { investorId, loadInvestorContact } from "../_shared/investor.ts";
 import { outreachContext } from "../_shared/context.ts";
 import { sendingAllowance } from "../_shared/inbox.ts";
-import { friendlyUnipileError, linkedinIdentifier, unipile, unipileBase, UnipileError, whatsappId } from "../_shared/unipile.ts";
+import { firstId, friendlyUnipileError, linkedinIdentifier, unipile, unipileConfigured, UnipileError, whatsappId } from "../_shared/unipile.ts";
 import { OUTCOMES, touchConversation, type Outcome } from "../_shared/unibox.ts";
 
 type Provider = "linkedin" | "whatsapp";
@@ -95,7 +95,7 @@ serve(async (req) => {
         admin.from("channel_accounts").select("provider, status, display_name, status_message, connected_at").eq("owner_id", user.id).neq("status", "disconnected"),
         usageToday(user.id),
       ]);
-      const configured = Boolean(await secret("UNIPILE_DSN").catch(() => null));
+      const configured = await unipileConfigured();
       return json({ configured, accounts: accounts ?? [], usage, limits: DAILY_LIMITS });
     }
 
@@ -104,25 +104,20 @@ serve(async (req) => {
       const { data: existing } = await admin.from("channel_accounts").select("unipile_account_id, status").eq("owner_id", user.id).eq("provider", input.provider)
         .neq("status", "disconnected").maybeSingle();
       const app = (await secret("APP_URL").catch(() => "https://www.centralegtm.com")).replace(/\/$/, "");
-      const hookSecret = await secret("UNIPILE_WEBHOOK_SECRET");
       const reconnect = existing?.unipile_account_id && existing.status !== "ok";
       // Back to the page they came from: onboarding or Settings, nowhere else.
-      const back = input.return_to === "/onboarding" ? "/onboarding" : "/dashboard/settings";
-      // Links expire at Unipile's daily restart anyway; an hour is plenty to finish the wizard.
-      const link = await unipile<{ url: string }>("/api/v1/hosted/accounts/link", {
+      const back = input.return_to === "/dashboard" ? "/dashboard" : "/dashboard/settings";
+      // Unipile sends the founder back to redirect_uri with account_id (or error_type) added, and tells our webhook
+      // (account.add, carrying `state`) which founder the new account belongs to.
+      const link = await unipile<{ link: string }>("/v2/auth/link", {
         json: {
-          type: reconnect ? "reconnect" : "create",
-          ...(reconnect ? { reconnect_account: existing.unipile_account_id } : { providers: [input.provider.toUpperCase()] }),
-          api_url: await unipileBase(),
-          expiresOn: new Date(Date.now() + 3_600_000).toISOString(),
-          name: `${user.id}:${input.provider}`,
-          notify_url: `${SUPABASE_URL}/functions/v1/unipile-webhook?secret=${encodeURIComponent(hookSecret)}`,
-          success_redirect_url: `${app}${back}${back.includes("?") ? "&" : "?"}channel=${input.provider}&connected=1`,
-          failure_redirect_url: `${app}${back}${back.includes("?") ? "&" : "?"}channel=${input.provider}&connected=0`,
-          disabled_features: ["linkedin_recruiter", "linkedin_organizations_mailboxes"],
+          ...(reconnect ? { account_id: existing.unipile_account_id } : { providers: [input.provider] }),
+          expires_on: new Date(Date.now() + 3_600_000).toISOString(),
+          redirect_uri: `${app}${back}?channel=${input.provider}`,
+          state: `${user.id}:${input.provider}`,
         },
       });
-      return json({ url: link.url });
+      return json({ url: link.link });
     }
 
     case "disconnect": {
@@ -132,7 +127,7 @@ serve(async (req) => {
       if (!acct) return json({ ok: true });
       // Unipile bills on accounts linked, so remove it there first.
       if (acct.unipile_account_id) {
-        await unipile(`/api/v1/accounts/${acct.unipile_account_id}`, { method: "DELETE" }).catch((err) => {
+        await unipile(`/v2/accounts/${encodeURIComponent(acct.unipile_account_id)}`, { method: "DELETE" }).catch((err) => {
           if (!(err instanceof UnipileError && err.status === 404)) throw err;
         });
       }
@@ -173,24 +168,27 @@ serve(async (req) => {
         if (input.channel === "linkedin") {
           const identifier = linkedinIdentifier(contact.linkedin_url);
           if (!identifier) throw new HttpError(422, `We do not have a LinkedIn profile for ${contact.full_name}.`);
-          const profile = await unipile<{ provider_id: string; network_distance?: string; is_relationship?: boolean; first_name?: string; last_name?: string }>(
-            `/api/v1/users/${encodeURIComponent(identifier)}?account_id=${encodeURIComponent(accountId)}`,
+          const profile = await unipile<{ id: string; specifics?: { network_distance?: string } }>(
+            `/v2/${encodeURIComponent(accountId)}/users/${encodeURIComponent(identifier)}?variant=linkedin_classic`,
           );
-          const connected = profile.is_relationship === true || profile.network_distance === "FIRST_DEGREE" || profile.network_distance === "DISTANCE_1";
+          const connected = profile.specifics?.network_distance === "FIRST_DEGREE";
 
           if (connected) {
             if (usage.linkedin_messages >= DAILY_LIMITS.linkedin_messages) throw new HttpError(429, `You have sent ${DAILY_LIMITS.linkedin_messages} LinkedIn messages today. More tomorrow.`);
-            const sent = await unipile<{ chat_id: string; message_id?: string }>("/api/v1/chats", { form: { account_id: accountId, text, attendees_ids: profile.provider_id } });
-            const convo = await touchConversation({ owner_id: user.id, channel: "linkedin", external_id: sent.chat_id, investor_id: contact.id, contact_name: contact.full_name, contact_handle: profile.provider_id, preview: text, direction: "outbound" });
-            await record(user.id, convo, "message", text, sent.message_id ?? null);
+            // users_ids as a plain string: an array would start a group chat.
+            const sent = await unipile<{ chat_id: string; message_id?: unknown }>(`/v2/${encodeURIComponent(accountId)}/inboxes/CLASSIC_PRIMARY/chats/send`, {
+              json: { text, users_ids: profile.id },
+            });
+            const convo = await touchConversation({ owner_id: user.id, channel: "linkedin", external_id: sent.chat_id, investor_id: contact.id, contact_name: contact.full_name, contact_handle: profile.id, preview: text, direction: "outbound" });
+            await record(user.id, convo, "message", text, firstId(sent.message_id));
             return json({ ok: true, conversation_id: convo, kind: "message" });
           }
 
           if (usage.linkedin_invites >= DAILY_LIMITS.linkedin_invites) throw new HttpError(429, `You have sent ${DAILY_LIMITS.linkedin_invites} LinkedIn invites today, the safe limit. More tomorrow.`);
           if (text.length > INVITE_NOTE_MAX) throw new HttpError(400, `${contact.full_name} is not a connection yet, so this goes as an invite note, which holds ${INVITE_NOTE_MAX} characters. Shorten it.`);
-          await unipile("/api/v1/users/invite", { json: { provider_id: profile.provider_id, account_id: accountId, message: text } });
+          await unipile(`/v2/${encodeURIComponent(accountId)}/users/me/relation-requests`, { json: { user_id: profile.id, message: text } });
           // Until they accept there is no chat; the webhook links the conversation to the chat on their first message.
-          const convo = await touchConversation({ owner_id: user.id, channel: "linkedin", external_id: `invite:${profile.provider_id}`, investor_id: contact.id, contact_name: contact.full_name, contact_handle: profile.provider_id, preview: text, direction: "outbound" });
+          const convo = await touchConversation({ owner_id: user.id, channel: "linkedin", external_id: `invite:${profile.id}`, investor_id: contact.id, contact_name: contact.full_name, contact_handle: profile.id, preview: text, direction: "outbound" });
           await record(user.id, convo, "invite", text, null);
           await admin.from("pipeline").upsert({ owner_id: user.id, investor_id: contact.id, stage: "contacted" }, { onConflict: "owner_id,investor_id", ignoreDuplicates: true });
           return json({ ok: true, conversation_id: convo, kind: "invite" });
@@ -204,9 +202,9 @@ serve(async (req) => {
           throw new HttpError(429, `You have started ${DAILY_LIMITS.whatsapp_new_chats} new WhatsApp chats today. WhatsApp restricts accounts that start many more, so the rest wait until tomorrow.`);
         }
         if (usage.whatsapp_messages >= DAILY_LIMITS.whatsapp_messages) throw new HttpError(429, `You have sent ${DAILY_LIMITS.whatsapp_messages} WhatsApp messages today. More tomorrow.`);
-        const sent = await unipile<{ chat_id: string; message_id?: string }>("/api/v1/chats", { form: { account_id: accountId, text, attendees_ids: attendee } });
+        const sent = await unipile<{ chat_id: string; message_id?: unknown }>(`/v2/${encodeURIComponent(accountId)}/chats/send`, { json: { text, users_ids: attendee } });
         const convo = await touchConversation({ owner_id: user.id, channel: "whatsapp", external_id: sent.chat_id, investor_id: contact.id, contact_name: contact.full_name, contact_handle: attendee, preview: text, direction: "outbound" });
-        await record(user.id, convo, "message", text, sent.message_id ?? null);
+        await record(user.id, convo, "message", text, firstId(sent.message_id));
         await admin.from("pipeline").upsert({ owner_id: user.id, investor_id: contact.id, stage: "contacted" }, { onConflict: "owner_id,investor_id", ignoreDuplicates: true });
         return json({ ok: true, conversation_id: convo, kind: "message" });
       } catch (err) {
@@ -232,18 +230,18 @@ serve(async (req) => {
         let messageId: string | null = null;
         if (chatId.startsWith("invite:")) {
           // Accepted invites have no chat until someone writes: start it now. LinkedIn refuses if they have not accepted.
-          const started = await unipile<{ chat_id: string; message_id?: string }>("/api/v1/chats", {
-            form: { account_id: account.unipile_account_id, text, attendees_ids: convo.contact_handle ?? chatId.slice(7) },
+          const started = await unipile<{ chat_id: string; message_id?: unknown }>(`/v2/${encodeURIComponent(account.unipile_account_id)}/inboxes/CLASSIC_PRIMARY/chats/send`, {
+            json: { text, users_ids: convo.contact_handle ?? chatId.slice(7) },
           }).catch((err) => {
             if (err instanceof UnipileError && err.status < 500) throw new HttpError(409, "They have not accepted your invite yet, so there is no chat to reply in.");
             throw err;
           });
           chatId = started.chat_id;
-          messageId = started.message_id ?? null;
+          messageId = firstId(started.message_id);
           await admin.from("conversations").update({ external_id: chatId }).eq("id", convo.id);
         } else {
-          const sent = await unipile<{ message_id?: string }>(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, { form: { text } });
-          messageId = sent.message_id ?? null;
+          const sent = await unipile<{ message_id?: unknown }>(`/v2/${encodeURIComponent(account.unipile_account_id)}/chats/${encodeURIComponent(chatId)}/messages/send`, { json: { text } });
+          messageId = firstId(sent.message_id);
         }
         await record(user.id, convo.id, "message", text, messageId);
         await touchConversation({ owner_id: user.id, channel: convo.channel, external_id: chatId, preview: text, direction: "outbound" });

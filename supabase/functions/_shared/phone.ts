@@ -35,8 +35,14 @@ export async function provisionNumber(ownerId: string, areaCode?: string | null)
     "filter[limit]": "5",
     "filter[exclude_held_numbers]": "true",
   });
-  let available = (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}${areaCode && /^\d{3}$/.test(areaCode) ? `&filter[national_destination_code]=${areaCode}` : ""}`)).data;
-  if (!available.length && areaCode) available = (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}`)).data;
+  // Telnyx answers "no numbers" for an area code with an error (10031), not an empty list: fall back to any US number.
+  const search = async (extra = "") =>
+    (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}${extra}`).catch((err) => {
+      if (extra && err instanceof TelnyxError && (err.code === "10031" || err.status === 400)) return { data: [] };
+      throw err;
+    })).data;
+  let available = areaCode && /^\d{3}$/.test(areaCode) ? await search(`&filter[national_destination_code]=${areaCode}`) : [];
+  if (!available.length) available = await search();
   if (!available.length) throw new HttpError(503, "No US numbers are available right now. Try again shortly.");
 
   const { data: row, error } = await admin.from("phone_numbers").insert({ owner_id: ownerId, e164: available[0].phone_number, status: "ordering" }).select().single();

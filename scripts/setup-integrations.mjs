@@ -54,7 +54,8 @@ async function telnyxSetup() {
   };
 
   // Where founders may call, a daily spend cap, and no more than 2 calls a day to the same number.
-  let profile = (await api("/outbound_voice_profiles?filter[name]=centrale")).data?.[0];
+  // Telnyx may ignore the name filter, so match the name here (never reuse another product's profile).
+  let profile = (await api("/outbound_voice_profiles?page[size]=250")).data?.find((p) => p.name === "centrale");
   if (!profile) {
     profile = (await api("/outbound_voice_profiles", {
       method: "POST",
@@ -71,7 +72,7 @@ async function telnyxSetup() {
     console.log("Telnyx: created outbound voice profile");
   } else console.log("Telnyx: outbound voice profile already exists");
 
-  let conn = (await api("/credential_connections?filter[connection_name][contains]=centrale")).data?.[0];
+  let conn = (await api("/credential_connections?page[size]=250")).data?.find((c) => c.connection_name === "centrale-browser");
   const password = crypto.randomUUID();
   const settings = {
     connection_name: "centrale-browser",

@@ -87,9 +87,29 @@ async function telnyxSetup() {
     await api(`/credential_connections/${conn.id}`, { method: "PATCH", body: JSON.stringify(settings) });
     console.log("Telnyx: updated credential connection");
   }
+  // Telnyx only dials out (POST /calls) through a Call Control Application, never a credential connection. The
+  // investor leg goes through this app; browsers keep logging in through the credential connection above.
+  let app = (await api("/call_control_applications?filter[application_name][contains]=centrale")).data?.[0];
+  const appSettings = {
+    application_name: "centrale-calls",
+    active: true,
+    anchorsite_override: "Latency",
+    webhook_event_url: `${FUNCTIONS}/telnyx-webhook`,
+    webhook_api_version: "2",
+    webhook_timeout_secs: 25,
+    outbound: { outbound_voice_profile_id: profile.id },
+  };
+  if (!app) {
+    app = (await api("/call_control_applications", { method: "POST", body: JSON.stringify(appSettings) })).data;
+    console.log("Telnyx: created call control application");
+  } else {
+    await api(`/call_control_applications/${app.id}`, { method: "PATCH", body: JSON.stringify(appSettings) });
+    console.log("Telnyx: updated call control application");
+  }
   Object.assign(out, {
     TELNYX_API_KEY: "(the key you used)",
     TELNYX_CONNECTION_ID: conn.id,
+    TELNYX_CALL_CONTROL_APP_ID: app.id,
     TELNYX_PUBLIC_KEY: "(Mission Control > Account settings > Keys & credentials > Public key)",
   });
 }

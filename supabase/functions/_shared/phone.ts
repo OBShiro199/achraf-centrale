@@ -15,6 +15,13 @@ export async function connectionId() {
   return id;
 }
 
+/** The Call Control Application investor legs are dialled through: Telnyx refuses POST /calls on a credential connection. */
+export async function callControlAppId() {
+  const id = await secret("TELNYX_CALL_CONTROL_APP_ID").catch(() => null);
+  if (!id) throw new HttpError(503, "Calling is not set up yet. Run scripts/setup-integrations.mjs and add TELNYX_CALL_CONTROL_APP_ID to Supabase Vault.");
+  return id;
+}
+
 /** Buys a US local number for the founder, in their preferred area code when one is free. Returns the number row. */
 export async function provisionNumber(ownerId: string, areaCode?: string | null) {
   const { data: current } = await admin.from("phone_numbers").select("*").eq("owner_id", ownerId).in("status", ["ordering", "active"]).maybeSingle();

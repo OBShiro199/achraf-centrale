@@ -12,7 +12,7 @@
 //      Claude summarise and tag the outcome.
 import { admin, background, json, serve } from "../_shared/core.ts";
 import { telnyx, verifyTelnyxSignature, clientState, readClientState, telnyxKey } from "../_shared/telnyx.ts";
-import { connectionId } from "../_shared/phone.ts";
+import { callControlAppId } from "../_shared/phone.ts";
 import { tagOutcome, touchConversation } from "../_shared/unibox.ts";
 import { CHANNEL_COSTS, recordSpend } from "../_shared/spend.ts";
 
@@ -58,11 +58,12 @@ async function action(ccid: string, name: string, body: Record<string, unknown> 
   });
 }
 
-/** Transcribes a recording with Telnyx's speech-to-text (Deepgram Nova 3). */
-async function transcribe(url: string) {
+/** Transcribes a recording with Telnyx's speech-to-text (Deepgram Nova 3). Sends the audio itself: passing the
+ * recording's link as file_url came back with no text. */
+async function transcribe(audio: ArrayBuffer) {
   const form = new FormData();
   form.append("model", "deepgram/nova-3");
-  form.append("file_url", url);
+  form.append("file", new Blob([audio], { type: "audio/mpeg" }), "call.mp3");
   form.append("response_format", "json");
   const res = await fetch("https://api.telnyx.com/v2/ai/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${await telnyxKey()}` }, body: form });
   if (!res.ok) throw new Error(`Transcription failed: ${res.status} ${await res.text()}`);
@@ -73,16 +74,21 @@ async function transcribe(url: string) {
 async function saveRecording(callId: string, url: string) {
   const { data: call } = await admin.from("calls").select("id, owner_id, investor_id, to_number, investor:investors_achraf(full_name)").eq("id", callId).maybeSingle();
   if (!call) return;
-  const audio = await fetch(url);
-  if (audio.ok) {
+  const res = await fetch(url);
+  const audio = res.ok ? await res.arrayBuffer() : null;
+  if (audio) {
     const path = `${call.owner_id}/${call.id}.mp3`;
-    await admin.storage.from("call-recordings").upload(path, await audio.arrayBuffer(), { contentType: "audio/mpeg", upsert: true });
+    await admin.storage.from("call-recordings").upload(path, audio, { contentType: "audio/mpeg", upsert: true });
     await admin.from("calls").update({ recording_path: path }).eq("id", call.id);
   }
-  const transcript = await transcribe(url).catch((err) => {
-    console.error(err);
-    return "";
-  });
+  const transcript = audio
+    ? await transcribe(audio).catch(async (err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(message);
+      await admin.rpc("record_function_error", { p_fn: "telnyx-webhook", p_status: 502, p_message: `call ${call.id}: ${message}`.slice(0, 1000) });
+      return "";
+    })
+    : "";
   // deno-lint-ignore no-explicit-any
   const name = (call.investor as any)?.full_name ?? call.to_number;
   const convo = await touchConversation({
@@ -111,9 +117,16 @@ serve(async (req) => {
       // Our own investor legs carry client_state; anything else here is a browser leg, parked.
       if (state) return json({ ok: true });
       // A browser leg, parked. Whose credential is it, and did they just press Call for this number?
+      // Telnyx does not document a sip_username field, and a browser that sets callerNumber shows up with `from` = the
+      // founder's own number rather than sip:<username>@…, so match the credential first and the number second.
       const sip = p.sip_username ?? (p.from ?? "").replace(/^sip:/, "").replace(/@.*$/, "");
-      const { data: number } = await admin.from("phone_numbers").select("id, owner_id, e164").eq("sip_username", sip).eq("status", "active").maybeSingle();
+      const fromDigits = digits(p.from);
+      let { data: number } = await admin.from("phone_numbers").select("id, owner_id, e164").eq("sip_username", sip).eq("status", "active").maybeSingle();
+      if (!number && fromDigits.length >= 8) {
+        ({ data: number } = await admin.from("phone_numbers").select("id, owner_id, e164").eq("e164", `+${fromDigits}`).eq("status", "active").maybeSingle());
+      }
       const to = digits(p.to);
+      if (!number) console.warn("telnyx call.initiated: no founder for", { from: p.from, to: p.to, sip_username: p.sip_username ?? null });
       const { data: call } = number
         ? await admin.from("calls").select("id, to_number").eq("owner_id", number.owner_id).eq("status", "dialing").is("telnyx_call_leg_id", null)
           .gte("started_at", new Date(Date.now() - 180_000).toISOString()).order("started_at", { ascending: false }).limit(5)
@@ -127,7 +140,7 @@ serve(async (req) => {
       const s: State = { call_id: call.id, leg: "investor", browser: p.call_control_id };
       const dialled = await telnyx<{ data: { call_session_id?: string; call_control_id?: string } }>("/calls", {
         body: {
-          connection_id: await connectionId(),
+          connection_id: await callControlAppId(),
           to: call.to_number,
           from: number.e164,
           link_to: p.call_control_id,

@@ -437,7 +437,7 @@ export const DOCS: DocSection[] = [
           caption="Limits count from midnight UTC."
         />
         <Callout tone="warning" title="Your accounts, your risk">
-          LinkedIn invite notes hold 300 characters (free LinkedIn accounts get a few notes a month). New WhatsApp numbers should wait a day after
+          LinkedIn invite notes hold 200 characters on a free LinkedIn account, so drafts stay under that (free accounts also get only a few notes a month). New WhatsApp numbers should wait a day after
           connecting before messaging, and an account that LinkedIn or WhatsApp signs out shows Reconnect in Settings. Write to investors who fit,
           and keep messages personal.
         </Callout>
@@ -790,6 +790,8 @@ export const DOCS: DocSection[] = [
             items: [
               "Investor search is faster with no filters: free-text search and sorting by name or firm no longer time out.",
               "Rebuilding your startup profile keeps the company name you entered.",
+              "The Investors list loads quickly in Your matches order, the default, with or without filters.",
+              "LinkedIn connection notes are drafted at about 150 characters and capped at 200, the limit on free LinkedIn accounts.",
             ],
           },
           {

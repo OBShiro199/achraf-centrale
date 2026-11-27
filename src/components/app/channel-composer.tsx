@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 
 type Provider = "linkedin" | "whatsapp";
 const LABEL: Record<Provider, string> = { linkedin: "LinkedIn", whatsapp: "WhatsApp" };
-const INVITE_MAX = 300;
+const INVITE_MAX = 200;
 
 /**
  * A LinkedIn note or WhatsApp message to one investor, drafted by Claude from the founder's profile.
- * LinkedIn goes as a message to a connection, or as an invite note (300 characters) to anyone else.
+ * LinkedIn goes as a message to a connection, or as an invite note (200 characters, the limit for free LinkedIn accounts) to anyone else.
  */
 export function ChannelComposer({
   investor,

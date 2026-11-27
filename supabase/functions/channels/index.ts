@@ -26,7 +26,8 @@ type Provider = "linkedin" | "whatsapp";
  * start many chats nobody answers.
  */
 export const DAILY_LIMITS = { linkedin_invites: 20, linkedin_messages: 50, whatsapp_new_chats: 15, whatsapp_messages: 60 };
-const INVITE_NOTE_MAX = 300;
+// Free LinkedIn accounts get 200 characters for an invite note (Premium gets 300); 200 works for everyone.
+const INVITE_NOTE_MAX = 200;
 
 interface Body {
   action?: "status" | "connect" | "disconnect" | "draft" | "send" | "reply" | "messages" | "tag";
@@ -141,7 +142,7 @@ serve(async (req) => {
       const linkedin = input.channel === "linkedin";
       const draft = await structured<{ text: string }>({
         system: linkedin
-          ? `You write LinkedIn connection notes from startup founders to investors. At most 280 characters including spaces. One or two sentences: who the founder is, the single strongest overlap with this investor, and a light ask to connect. No greeting line beyond their first name, no links, no hashtags. Never invent facts. ${HOUSE_STYLE}`
+          ? `You write LinkedIn connection notes from startup founders to investors. Aim for about 150 characters and never more than 190, including spaces. One or two short sentences: who the founder is and what they build in a few words, the single strongest overlap with this investor, and a light ask to connect. No greeting line beyond their first name, no links, no hashtags. Never invent facts. ${HOUSE_STYLE}`
           : `You write a first WhatsApp message from a startup founder to an investor. 40 to 70 words, conversational, as one person texting another: say who they are and how they got the number is not mentioned. Name the single strongest overlap with this investor and ask whether a short call is worth it. Sign with the founder's first name. No links unless a booking link is given. Never invent facts. ${HOUSE_STYLE}`,
         content: [{ type: "text", text: `${context}\n\nWrite the ${linkedin ? "connection note" : "WhatsApp message"} from ${firstName} to ${investor.full_name}.` }],
         schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } },

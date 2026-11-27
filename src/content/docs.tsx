@@ -18,7 +18,7 @@ export interface DocSection {
 }
 
 /** Shown at the top of the page. Change it whenever this file changes. */
-export const DOCS_UPDATED = "2026-11-22";
+export const DOCS_UPDATED = "2026-11-27";
 
 export const DOCS: DocSection[] = [
   {
@@ -785,6 +785,20 @@ export const DOCS: DocSection[] = [
     body: (
       <Changelog
         entries={[
+          {
+            date: "2026-11-27",
+            items: [
+              "Investor search is faster with no filters: free-text search and sorting by name or firm no longer time out.",
+              "Rebuilding your startup profile keeps the company name you entered.",
+            ],
+          },
+          {
+            date: "2026-11-25",
+            items: [
+              "Searches sorted by fit score are faster, and no longer time out when your profile lists few sectors or keywords.",
+              "Calls from the browser now ring the investor, and answered calls get a transcript and summary again.",
+            ],
+          },
           {
             date: "2026-11-22",
             items: [

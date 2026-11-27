@@ -259,7 +259,7 @@ function CallsThread({ convo }: { convo: Conversation }) {
     <div className="quiet-scroll flex-1 space-y-3 overflow-y-auto px-5 py-5">
       {convo.investor_id && (
         <Button size="sm" onClick={() => dial(convo.investor_id!)} disabled={busy}>
-          <Phone className="h-3.5 w-3.5" /> Call again
+          <Phone className="h-3.5 w-3.5" /> {calls.length ? "Call again" : "Call"}
         </Button>
       )}
       {calls.length === 0 && <p className="text-[13px] text-muted">No calls yet.</p>}

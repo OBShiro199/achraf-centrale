@@ -55,7 +55,7 @@ serve(async (req) => {
   await releaseNumber(user.id).catch((err) => console.warn("number release failed", err));
   const { data: accounts } = await admin.from("channel_accounts").select("unipile_account_id").eq("owner_id", user.id).neq("status", "disconnected");
   for (const a of accounts ?? []) {
-    if (a.unipile_account_id) await unipile(`/api/v1/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.warn("unipile unlink failed", err));
+    if (a.unipile_account_id) await unipile(`/v2/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.warn("unipile unlink failed", err));
   }
 
   await removeFolder("decks", user.id);

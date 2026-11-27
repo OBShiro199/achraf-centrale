@@ -93,7 +93,7 @@ async function sync(m: WhopMembership) {
     await releaseNumber(owner).catch((err) => console.error("number release failed", err));
     const { data: accounts } = await admin.from("channel_accounts").select("id, unipile_account_id").eq("owner_id", owner).neq("status", "disconnected");
     for (const a of accounts ?? []) {
-      if (a.unipile_account_id) await unipile(`/api/v1/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.error("unipile unlink failed", err));
+      if (a.unipile_account_id) await unipile(`/v2/accounts/${a.unipile_account_id}`, { method: "DELETE" }).catch((err) => console.error("unipile unlink failed", err));
       await admin.from("channel_accounts").update({ status: "disconnected" }).eq("id", a.id);
     }
   }

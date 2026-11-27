@@ -124,7 +124,8 @@ serve(async (req) => {
     });
 
     const clean = {
-      name: tidy(result.name) || startup.name,
+      // The name the founder typed wins; Claude's is only a fallback, and never a placeholder like "Not stated".
+      name: [startup.name, result.name].map((n) => tidy(n ?? "")).find((n) => n && !/^(not stated|unknown|n\/?a|none)\.?$/i.test(n)) ?? startup.name,
       one_liner: tidy(result.one_liner),
       summary: tidy(result.summary),
       mission: tidy(result.mission),

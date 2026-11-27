@@ -15,6 +15,13 @@ export async function connectionId() {
   return id;
 }
 
+/** The Call Control Application investor legs are dialled through: Telnyx refuses POST /calls on a credential connection. */
+export async function callControlAppId() {
+  const id = await secret("TELNYX_CALL_CONTROL_APP_ID").catch(() => null);
+  if (!id) throw new HttpError(503, "Calling is not set up yet. Run scripts/setup-integrations.mjs and add TELNYX_CALL_CONTROL_APP_ID to Supabase Vault.");
+  return id;
+}
+
 /** Buys a US local number for the founder, in their preferred area code when one is free. Returns the number row. */
 export async function provisionNumber(ownerId: string, areaCode?: string | null) {
   const { data: current } = await admin.from("phone_numbers").select("*").eq("owner_id", ownerId).in("status", ["ordering", "active"]).maybeSingle();
@@ -35,8 +42,14 @@ export async function provisionNumber(ownerId: string, areaCode?: string | null)
     "filter[limit]": "5",
     "filter[exclude_held_numbers]": "true",
   });
-  let available = (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}${areaCode && /^\d{3}$/.test(areaCode) ? `&filter[national_destination_code]=${areaCode}` : ""}`)).data;
-  if (!available.length && areaCode) available = (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}`)).data;
+  // Telnyx answers "no numbers" for an area code with an error (10031), not an empty list: fall back to any US number.
+  const search = async (extra = "") =>
+    (await telnyx<{ data: Available[] }>(`/available_phone_numbers?${filters}${extra}`).catch((err) => {
+      if (extra && err instanceof TelnyxError && (err.code === "10031" || err.status === 400)) return { data: [] };
+      throw err;
+    })).data;
+  let available = areaCode && /^\d{3}$/.test(areaCode) ? await search(`&filter[national_destination_code]=${areaCode}`) : [];
+  if (!available.length) available = await search();
   if (!available.length) throw new HttpError(503, "No US numbers are available right now. Try again shortly.");
 
   const { data: row, error } = await admin.from("phone_numbers").insert({ owner_id: ownerId, e164: available[0].phone_number, status: "ordering" }).select().single();

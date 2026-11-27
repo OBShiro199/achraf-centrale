@@ -45,7 +45,7 @@ Edge functions read secrets from Supabase Vault through `get_app_secret()` (see 
 | `OUTREACH_LIVE` | `true` sends to real investors. Anything else sends every email to `OUTREACH_TEST_RECIPIENT` |
 | `OUTREACH_TEST_RECIPIENT` | Where test-mode email goes (default oliverburt3@gmail.com) |
 | `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET` | Billing |
-| `UNIPILE_DSN`, `UNIPILE_API_KEY`, `UNIPILE_WEBHOOK_SECRET` | LinkedIn and WhatsApp |
+| `UNIPILE_API_KEY`, `UNIPILE_WEBHOOK_SECRET` | LinkedIn and WhatsApp (Unipile API v2: no DSN; the key is an application Service Key, the secret signs webhooks) |
 | `TELNYX_API_KEY`, `TELNYX_CONNECTION_ID`, `TELNYX_PUBLIC_KEY` | Calling |
 | `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Buying sending domains |
 | `DOMAIN_MAX_USD` | Most Centrale pays for a founder's domain (default 13) |
@@ -99,7 +99,7 @@ Built and type-checked, but not yet run against the live providers. Do these in 
 
 1. **Apply migrations** `20261121100000_two_plans_full_trial` and `20261121110000_channels_unibox`, then deploy: `channels`, `phone`, `unipile-webhook` (no JWT), `telnyx-webhook` (no JWT), `domains`, `draft-email`, `send-email`, `process-outbox`, `openmail-webhook`, `inbox`, `whop`, `whop-webhook`, `delete-account`.
 2. **Whop, before step 1 goes out:** create two plans on the Centrale product, monthly $129 and quarterly $249 (billed every 3 months), each with a 7-day free trial. The plans migration clears the old monthly plan id (it pointed at the $1 test plan), so straight after applying it run `update public.plans set whop_plan_id = 'plan_...' where id = 'monthly';` and the same for `quarterly`. A plan without an id is hidden from signup and Billing; with neither set, signup cannot start a trial.
-3. **Unipile:** create the account, copy the DSN and an API key, pick a random `UNIPILE_WEBHOOK_SECRET`, store all three in Vault, then run `node scripts/setup-integrations.mjs` with them in the environment to register the webhooks.
+3. **Unipile (API v2):** the account needs an active subscription (the API answers `api/inactive_subscription` until then) and an Application; create a Service Key in it and store it as `UNIPILE_API_KEY`. Then create the webhook endpoint (`scripts/setup-integrations.mjs`, or the SQL in the appendix "Unipile endpoint from the database") and store the signing secret it returns as `UNIPILE_WEBHOOK_SECRET`. LinkedIn and WhatsApp switch from "Coming soon" to Connect as soon as the key is in Vault.
 4. **Telnyx:** complete Level 2 verification, store `TELNYX_API_KEY`, run `scripts/setup-integrations.mjs` with `TELNYX_API_KEY` set (it creates the outbound voice profile and the credential connection), then store the printed `TELNYX_CONNECTION_ID` and your account's `TELNYX_PUBLIC_KEY` in Vault.
 5. **Porkbun:** create the account, verify email and phone, add credit and auto top-up, raise the monthly API spend limit above the default $100, create an API key with purchase permission, and store `PORKBUN_API_KEY` and `PORKBUN_SECRET_KEY`.
 6. **Test with a tester account:**
@@ -136,3 +136,22 @@ Point the agent at this repo and tell it to read `CLAUDE.md` and this file first
 - Every new Claude or Firecrawl call passes `track` so its cost lands in `ai_spend`.
 - Next.js here is version 16: read `node_modules/next/dist/docs/` before using an API from memory.
 - Never commit keys. Never delete production data without the owner asking.
+
+## Appendix: Unipile endpoint from the database
+
+Creates the Unipile webhook endpoint with the key already in Vault and stores its signing secret, so neither passes
+through a terminal. Run the first statement, wait a few seconds, then the second with the request id it returned.
+
+```sql
+select net.http_post(
+  url := 'https://api.unipile.com/v2/webhooks/endpoints/',
+  headers := jsonb_build_object('X-API-KEY', public.get_app_secret('UNIPILE_API_KEY'), 'Content-Type', 'application/json'),
+  body := jsonb_build_object('url', 'https://tldvqiqucfmlnkgxaufy.supabase.co/functions/v1/unipile-webhook', 'description', 'Centrale',
+    'trigger_events', jsonb_build_array('account.add', 'account.reconnect', 'account.remove', 'account.status.running',
+      'account.status.disconnected', 'account.status.errored', 'relation.new', 'message.new'))
+) as request_id;
+
+select vault.update_secret((select id from vault.secrets where name = 'UNIPILE_WEBHOOK_SECRET'),
+  (select content::jsonb->>'secret' from net._http_response where id = <request id>))
+where (select status_code from net._http_response where id = <request id>) between 200 and 299;
+```

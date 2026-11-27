@@ -1,43 +1,43 @@
-// Receives Unipile events. Three kinds arrive here:
-//   hosted-auth notify  { status: CREATION_SUCCESS | RECONNECTED, account_id, name: "<owner id>:<provider>" }
-//   account status      { AccountStatus: { account_id, account_type, message } }
-//   messaging           { event: "message_received", account_id, chat_id, message_id, message, sender, is_sender, ... }
-// Unipile does not sign webhooks: the notify URL carries ?secret=, and webhooks created by
-// scripts/setup-integrations.mjs send an Unipile-Auth header. Both must equal UNIPILE_WEBHOOK_SECRET.
-// Only conversations Centrale started (or with someone in the investor directory) are kept, so a founder's
-// personal LinkedIn and WhatsApp chats never reach the Unibox.
-import { admin, json, secret, serve } from "../_shared/core.ts";
+// Receives Unipile v2 events for the webhook endpoint created by scripts/setup-integrations.mjs. Every request is
+// signed (unipile-signature: t=…,v0=HMAC-SHA256(secret, "t.body")) with the endpoint's secret, kept in Vault as
+// UNIPILE_WEBHOOK_SECRET. Unipile wants a reply within 5 seconds, so slow work (Claude, emails) runs after replying.
+//
+//   account.add / account.reconnect   { account, state: "<owner id>:<provider>" }  link the account to the founder
+//   account.remove                    { account: { id } }
+//   account.status.*                  running, disconnected, errored, partial, degraded
+//   relation.new                      a LinkedIn invite was accepted (can arrive hours later)
+//   message.new                       a message in a chat, sent or received (is_sender tells which)
+//
+// Only conversations Centrale started (or invites it sent) are kept, so a founder's personal chats never reach it.
+import { admin, background, json, secret, serve } from "../_shared/core.ts";
+import { loadInvestor } from "../_shared/investor.ts";
 import { escapeHtml } from "../_shared/mail.ts";
 import { openmail } from "../_shared/openmail.ts";
-import { loadInvestor } from "../_shared/investor.ts";
+import { verifyUnipileSignature } from "../_shared/unipile.ts";
 import { notifyFounder, tagOutcome, touchConversation } from "../_shared/unibox.ts";
 
-interface MessageEvent {
-  event: string;
-  account_id: string;
-  account_type?: string;
-  chat_id: string;
-  message_id: string;
-  message?: string | null;
-  timestamp?: string;
-  is_sender?: boolean;
-  is_group?: boolean;
-  message_type?: string;
-  account_info?: { user_id?: string };
-  sender?: { attendee_name?: string; attendee_provider_id?: string; attendee_profile_url?: string };
+interface Envelope {
+  id: string;
+  type: string;
+  account_id?: string;
+  account_provider?: string;
+  // deno-lint-ignore no-explicit-any
+  payload: any;
 }
 
-const STATUS_MAP: Record<string, "ok" | "credentials" | "error" | "connecting" | "disconnected"> = {
-  OK: "ok",
-  SYNC_SUCCESS: "ok",
-  RECONNECTED: "ok",
-  CREATION_SUCCESS: "connecting",
-  CONNECTING: "connecting",
-  CREDENTIALS: "credentials",
-  PERMISSIONS: "credentials",
-  ERROR: "error",
-  STOPPED: "error",
-  DELETED: "disconnected",
+interface Message {
+  id: string;
+  chat_id: string;
+  text?: string | null;
+  sender_id?: string;
+  is_sender?: boolean;
+  timestamp?: string;
+}
+
+const STATUS: Record<string, "ok" | "credentials" | "error"> = {
+  "account.status.running": "ok",
+  "account.status.disconnected": "credentials",
+  "account.status.errored": "error",
 };
 
 async function emailReconnect(ownerId: string, provider: "linkedin" | "whatsapp", accountId: string) {
@@ -60,109 +60,105 @@ async function emailReconnect(ownerId: string, provider: "linkedin" | "whatsapp"
   });
 }
 
-serve(async (req) => {
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const expected = await secret("UNIPILE_WEBHOOK_SECRET");
-  const provided = new URL(req.url).searchParams.get("secret") ?? req.headers.get("unipile-auth");
-  if (!provided || provided !== expected) return json({ error: "Unauthorised" }, 401);
-
-  // deno-lint-ignore no-explicit-any
-  const body = await req.json() as any;
-
-  // 1. The hosted wizard finished: link the Unipile account to the founder.
-  if (body.status && body.account_id && typeof body.name === "string") {
-    const [owner, provider] = body.name.split(":");
-    if (!owner || (provider !== "linkedin" && provider !== "whatsapp")) return json({ ok: true, ignored: "unknown name" });
-    // A new connection replaces an older one for the same channel.
-    await admin.from("channel_accounts").update({ status: "disconnected" }).eq("owner_id", owner).eq("provider", provider)
-      .neq("unipile_account_id", body.account_id).neq("status", "disconnected");
-    const { error } = await admin.from("channel_accounts").upsert(
-      // Usable straight away; a later CREDENTIALS event marks it for reconnecting if the provider signs it out.
-      { owner_id: owner, provider, unipile_account_id: body.account_id, status: "ok", connected_at: new Date().toISOString(), status_message: null },
-      { onConflict: "unipile_account_id" },
-    );
-    if (error) throw error;
-    return json({ ok: true });
-  }
-
-  // 2. Account status: syncing finished, credentials expired, account restricted.
-  if (body.AccountStatus) {
-    const s = body.AccountStatus as { account_id: string; message: string };
-    const status = STATUS_MAP[String(s.message).toUpperCase()];
-    if (!status) return json({ ok: true, ignored: s.message });
-    const { data: before } = await admin.from("channel_accounts").select("id, owner_id, provider, status").eq("unipile_account_id", s.account_id)
-      .neq("status", "disconnected").maybeSingle();
-    if (!before) return json({ ok: true, ignored: "unknown account" });
-    await admin.from("channel_accounts").update({
-      status,
-      status_message: status === "credentials" ? "The account signed out or was restricted. Reconnect it in Settings." : null,
-    }).eq("id", before.id);
-    // Tell the founder once, when a working account drops, so their LinkedIn or WhatsApp outreach does not stall unnoticed.
-    if ((status === "credentials" || status === "error") && before.status === "ok") {
-      await emailReconnect(before.owner_id, before.provider as "linkedin" | "whatsapp", body.AccountStatus.account_id).catch((err) => console.error("reconnect email failed", err));
-    }
-    return json({ ok: true });
-  }
-
-  // 3. A LinkedIn invite was accepted: say so on the conversation, so the founder can message them.
-  if (body.event === "new_relation" && body.account_id && body.user_provider_id) {
-    const { data: acct } = await admin.from("channel_accounts").select("owner_id").eq("unipile_account_id", body.account_id).neq("status", "disconnected").maybeSingle();
-    if (acct) {
-      const { data: invite } = await admin.from("conversations").select("id").eq("owner_id", acct.owner_id).eq("channel", "linkedin")
-        .eq("external_id", `invite:${body.user_provider_id}`).maybeSingle();
-      if (invite) await admin.from("conversations").update({ last_preview: "Accepted your invitation. You can message them now.", last_message_at: new Date().toISOString(), last_direction: "inbound", unread: true }).eq("id", invite.id);
-    }
-    return json({ ok: true });
-  }
-
-  // 4. A message.
-  const e = body as MessageEvent;
-  if (e.event !== "message_received" || !e.chat_id || !e.message_id || e.is_group) return json({ ok: true, ignored: e.event ?? "unknown" });
-
-  const { data: account } = await admin.from("channel_accounts").select("owner_id, provider").eq("unipile_account_id", e.account_id).neq("status", "disconnected").maybeSingle();
-  if (!account) return json({ ok: true, ignored: "unknown account" });
-  const channel = account.provider as "linkedin" | "whatsapp";
-  const owner = account.owner_id as string;
-
-  // Messages the founder sent (from Centrale or their phone) also arrive here.
-  const outbound = e.is_sender === true || (e.account_info?.user_id && e.account_info.user_id === e.sender?.attendee_provider_id);
-  const senderId = e.sender?.attendee_provider_id ?? null;
-
-  // Find the conversation: by chat, else (LinkedIn) the invite we sent to this person, which now has a chat.
-  let { data: convo } = await admin.from("conversations").select("id, investor_id, external_id").eq("owner_id", owner).eq("channel", channel).eq("external_id", e.chat_id).maybeSingle();
-  if (!convo && senderId && !outbound) {
-    // Only an invite still waiting for its chat is linked this way.
-    const { data: byHandle } = await admin.from("conversations").select("id, investor_id, external_id").eq("owner_id", owner).eq("channel", channel).eq("contact_handle", senderId)
-      .like("external_id", "invite:%").order("last_message_at", { ascending: false }).limit(1).maybeSingle();
-    if (byHandle) {
-      await admin.from("conversations").update({ external_id: e.chat_id }).eq("id", byHandle.id);
-      convo = { ...byHandle, external_id: e.chat_id };
-    }
-  }
-  if (!convo) return json({ ok: true, ignored: "not a Centrale conversation" });
-
-  const text = (e.message ?? "").trim() || (e.message_type === "INVITATION" ? "Accepted your invitation" : "(attachment)");
-  const { data: inserted } = await admin.from("channel_messages").upsert(
-    { owner_id: owner, conversation_id: convo.id, direction: outbound ? "outbound" : "inbound", body: text, external_id: e.message_id, sent_at: e.timestamp ?? new Date().toISOString() },
-    { onConflict: "external_id", ignoreDuplicates: true },
-  ).select("id");
-  if (!inserted?.length) return json({ ok: true, duplicate: true });
-
-  await touchConversation({ owner_id: owner, channel, external_id: e.chat_id, preview: text, direction: outbound ? "outbound" : "inbound", at: e.timestamp });
-  if (outbound) return json({ ok: true });
-
-  // An investor answered: stop email follow-ups to them, tag the outcome, tell the founder.
+/** After an investor answers: stop email follow-ups, move the pipeline, tag the reply, email the founder. */
+async function onInvestorReply(owner: string, channel: "linkedin" | "whatsapp", convo: { id: string; investor_id: number | null }, text: string, messageId: string) {
   if (convo.investor_id) {
     await admin.from("scheduled_emails").update({ status: "cancelled", last_error: `Investor replied on ${channel === "linkedin" ? "LinkedIn" : "WhatsApp"}` })
       .eq("owner_id", owner).eq("investor_id", convo.investor_id).eq("kind", "follow_up").eq("status", "queued");
     await admin.rpc("advance_pipeline", { p_owner: owner, p_investor: convo.investor_id, p_outcome: "interested" }).then(() => null, () => null);
   }
   const investor = convo.investor_id ? await loadInvestor(Number(convo.investor_id)).catch(() => null) : null;
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     tagOutcome({ owner_id: owner, conversation_id: convo.id, investor_id: convo.investor_id, channel, text }),
-    investor
-      ? notifyFounder({ owner_id: owner, investor, channel, preview: text, conversation_id: convo.id, idempotencyKey: `unipile-${e.message_id}` })
-      : Promise.resolve(),
+    investor ? notifyFounder({ owner_id: owner, investor, channel, preview: text, conversation_id: convo.id, idempotencyKey: `unipile-${messageId}` }) : Promise.resolve(),
   ]);
+  for (const r of results) if (r.status === "rejected") console.error("reply follow-up failed", r.reason);
+}
+
+serve(async (req) => {
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const raw = await req.text();
+  const key = await secret("UNIPILE_WEBHOOK_SECRET").catch(() => null);
+  if (!key?.trim() || !(await verifyUnipileSignature(raw, req.headers.get("unipile-signature"), key))) return json({ error: "Invalid signature" }, 401);
+
+  const ev = JSON.parse(raw) as Envelope;
+  const { data: fresh } = await admin.rpc("claim_webhook_event", { p_event_id: `unipile:${ev.id}` });
+  if (!fresh) return json({ ok: true, duplicate: true });
+  const accountId = ev.account_id ?? ev.payload?.account?.id;
+
+  // 1. A founder finished Unipile's connect page: link the account to them.
+  if (ev.type === "account.add" || ev.type === "account.reconnect") {
+    const [owner, provider] = String(ev.payload?.state ?? "").split(":");
+    if (!owner || (provider !== "linkedin" && provider !== "whatsapp") || !accountId) return json({ ok: true, ignored: "no state" });
+    // A new connection replaces an older one for the same channel.
+    await admin.from("channel_accounts").update({ status: "disconnected" }).eq("owner_id", owner).eq("provider", provider)
+      .neq("unipile_account_id", accountId).neq("status", "disconnected");
+    const { error } = await admin.from("channel_accounts").upsert(
+      { owner_id: owner, provider, unipile_account_id: accountId, status: "ok", display_name: ev.payload?.account?.name ?? null, connected_at: new Date().toISOString(), status_message: null },
+      { onConflict: "unipile_account_id" },
+    );
+    if (error) throw error;
+    return json({ ok: true });
+  }
+
+  if (!accountId) return json({ ok: true, ignored: "no account" });
+  const { data: account } = await admin.from("channel_accounts").select("id, owner_id, provider, status").eq("unipile_account_id", accountId).neq("status", "disconnected").maybeSingle();
+  if (!account) return json({ ok: true, ignored: "unknown account" });
+  const owner = account.owner_id as string;
+  const channel = account.provider as "linkedin" | "whatsapp";
+
+  // 2. The account was removed at Unipile, or its connection changed.
+  if (ev.type === "account.remove") {
+    await admin.from("channel_accounts").update({ status: "disconnected" }).eq("id", account.id);
+    return json({ ok: true });
+  }
+  const status = STATUS[ev.type];
+  if (status) {
+    await admin.from("channel_accounts").update({
+      status,
+      status_message: status === "credentials" ? "The account signed out or was restricted. Reconnect it in Settings." : status === "error" ? "The connection is failing. Reconnect it in Settings." : null,
+    }).eq("id", account.id);
+    // Tell the founder once, when a working account drops.
+    if (status !== "ok" && account.status === "ok") background(emailReconnect(owner, channel, accountId).catch((err) => console.error("reconnect email failed", err)));
+    return json({ ok: true });
+  }
+
+  // 3. A LinkedIn invite was accepted: say so on the conversation, so the founder can message them.
+  if (ev.type === "relation.new") {
+    const userId = ev.payload?.user?.id;
+    if (!userId) return json({ ok: true });
+    const { data: invite } = await admin.from("conversations").select("id").eq("owner_id", owner).eq("channel", "linkedin").eq("external_id", `invite:${userId}`).maybeSingle();
+    if (invite) await admin.from("conversations").update({ last_preview: "Accepted your invitation. You can message them now.", last_message_at: new Date().toISOString(), last_direction: "inbound", unread: true }).eq("id", invite.id);
+    return json({ ok: true });
+  }
+
+  if (ev.type !== "message.new") return json({ ok: true, ignored: ev.type });
+
+  // 4. A message, sent (from Centrale or the founder's phone) or received.
+  const m = ev.payload as Message;
+  if (!m?.id || !m.chat_id) return json({ ok: true, ignored: "no message" });
+  const outbound = m.is_sender === true;
+
+  // Find the conversation: by chat, else (LinkedIn) the invite we sent to this person, which now has a chat.
+  let { data: convo } = await admin.from("conversations").select("id, investor_id").eq("owner_id", owner).eq("channel", channel).eq("external_id", m.chat_id).maybeSingle();
+  if (!convo && m.sender_id && !outbound) {
+    const { data: invite } = await admin.from("conversations").select("id, investor_id").eq("owner_id", owner).eq("channel", channel).eq("contact_handle", m.sender_id)
+      .like("external_id", "invite:%").order("last_message_at", { ascending: false }).limit(1).maybeSingle();
+    if (invite) {
+      await admin.from("conversations").update({ external_id: m.chat_id }).eq("id", invite.id);
+      convo = invite;
+    }
+  }
+  if (!convo) return json({ ok: true, ignored: "not a Centrale conversation" });
+
+  const text = (m.text ?? "").trim() || "(attachment)";
+  const { data: inserted } = await admin.from("channel_messages").upsert(
+    { owner_id: owner, conversation_id: convo.id, direction: outbound ? "outbound" : "inbound", body: text, external_id: m.id, sent_at: m.timestamp ?? new Date().toISOString() },
+    { onConflict: "external_id", ignoreDuplicates: true },
+  ).select("id");
+  if (!inserted?.length) return json({ ok: true, duplicate: true });
+
+  await touchConversation({ owner_id: owner, channel, external_id: m.chat_id, preview: text, direction: outbound ? "outbound" : "inbound", at: m.timestamp });
+  if (!outbound) background(onInvestorReply(owner, channel, convo, text, m.id));
   return json({ ok: true });
 });
